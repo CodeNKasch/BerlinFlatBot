@@ -32,13 +32,42 @@ class FlatMonitor:
         try:
             await self.bot.send_message(
                 chat_id=self.chat_id,
-                text="🏠 *Flat Monitor Started*\nI will notify you about new flats every minute!\nUse !list to see all current flats.",
+                text="🏠 *Flat Monitor Started*\n\n"
+                     "I will notify you about new flats every minute!\n\n"
+                     "Available commands:\n"
+                     "• /list - Show all current flats\n"
+                     "• /help - Show this help message",
                 parse_mode="Markdown",
             )
             logger.info(f"Welcome message sent to chat {self.chat_id}")
         except TelegramError as e:
             logger.error(f"Failed to send welcome message: {e}")
             exit()
+
+    async def handle_help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle the /help command."""
+        if str(update.effective_chat.id) != self.chat_id:
+            return
+
+        help_text = (
+            "🏠 *Berlin Flat Monitor Help*\n\n"
+            "I monitor inberlinwohnen.de for new flats and notify you when they appear.\n\n"
+            "*Available Commands:*\n"
+            "• /list - Show all current flats\n"
+            "• /help - Show this help message\n\n"
+            "The bot will automatically notify you about:\n"
+            "• New WBS flats 🏠\n"
+            "• New non-WBS flats ✅"
+        )
+
+        try:
+            await update.message.reply_text(
+                text=help_text,
+                parse_mode="Markdown",
+            )
+            logger.info("Help message sent")
+        except TelegramError as e:
+            logger.error(f"Failed to send help message: {e}")
 
     def extract_flat_details(self, flat_element):
         """Extract detailed information about a flat."""
@@ -180,10 +209,17 @@ class FlatMonitor:
                 logger.error(f"Failed to send non-WBS update: {e}")
 
     async def handle_list_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle the !list command."""
+        """Handle the /list command."""
+        logger.info(f"Received command: {update.message.text}")
+        logger.info(f"Chat ID: {update.effective_chat.id}")
+        logger.info(f"Expected Chat ID: {self.chat_id}")
+        
         if str(update.effective_chat.id) != self.chat_id:
+            logger.info("Message not from target chat, ignoring")
             return
 
+        logger.info("Processing list command")
+        
         # Fetch latest flats
         flats = await self.fetch_flats()
         
@@ -207,6 +243,7 @@ class FlatMonitor:
                     parse_mode="Markdown",
                     disable_web_page_preview=True,
                 )
+                logger.info(f"Sent {len(wbs_flats)} WBS flats")
             except TelegramError as e:
                 logger.error(f"Failed to send WBS list: {e}")
 
@@ -222,6 +259,7 @@ class FlatMonitor:
                     parse_mode="Markdown",
                     disable_web_page_preview=True,
                 )
+                logger.info(f"Sent {len(non_wbs_flats)} non-WBS flats")
             except TelegramError as e:
                 logger.error(f"Failed to send non-WBS list: {e}")
 
@@ -269,15 +307,18 @@ async def main():
     logger.info("Starting bot...")
     monitor = FlatMonitor(BOT_TOKEN, CHAT_ID)
 
-    # Create application
-    application = Application.builder().token(BOT_TOKEN).build()
+    # Create application with proper update settings
+    application = (
+        Application.builder()
+        .token(BOT_TOKEN)
+        .concurrent_updates(True)
+        .build()
+    )
     monitor.application = application  # Store application reference
 
-    # Add message handler for !list command
-    application.add_handler(MessageHandler(
-        filters.Regex(r'^!list$'),
-        monitor.handle_list_command
-    ))
+    # Add command handlers
+    application.add_handler(CommandHandler("list", monitor.handle_list_command))
+    application.add_handler(CommandHandler("help", monitor.handle_help_command))
 
     # Start the monitoring in the background
     monitoring_task = asyncio.create_task(monitor.monitor())
@@ -288,7 +329,13 @@ async def main():
     
     try:
         # Run the bot until stopped
-        await application.updater.start_polling()
+        logger.info("Starting polling...")
+        await application.updater.start_polling(
+            allowed_updates=Update.ALL_TYPES,
+            drop_pending_updates=True
+        )
+        logger.info("Polling started successfully")
+        
         # Keep the bot running
         while True:
             await asyncio.sleep(1)
