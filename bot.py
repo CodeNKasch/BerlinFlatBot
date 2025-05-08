@@ -35,6 +35,7 @@ class FlatMonitor:
             logger.info(f"Welcome message sent to chat {self.chat_id}")
         except TelegramError as e:
             logger.error(f"Failed to send welcome message: {e}")
+            exit()
 
     def extract_flat_details(self, flat_element):
         """Extract detailed information about a flat."""
