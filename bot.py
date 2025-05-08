@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class FlatMonitor:
-    def __init__(self, bot_token, chat_id):
+    def __init__(self, bot_token, chat_id, monitor_interval=60):
         """Initialize the monitor with bot token and chat ID."""
         self.bot = Bot(token=bot_token)
         self.chat_id = chat_id
@@ -25,7 +25,8 @@ class FlatMonitor:
         self.url = "https://inberlinwohnen.de/wohnungsfinder/"
         self.current_flats = []  # Store current flats
         self.application = None  # Store application reference
-        logger.info("FlatMonitor initialized")
+        self.MONITOR_INTERVAL = monitor_interval  # Monitoring interval in seconds
+        logger.info(f"FlatMonitor initialized with {self.MONITOR_INTERVAL} seconds interval")
 
     async def send_welcome(self):
         """Send welcome message to the chat."""
@@ -336,8 +337,8 @@ class FlatMonitor:
             except Exception as e:
                 logger.error(f"Error during monitoring: {e}")
 
-            logger.info("Waiting 60 seconds before next check...")
-            await asyncio.sleep(60)
+            logger.info(f"Waiting {self.MONITOR_INTERVAL} seconds before next check...")
+            await asyncio.sleep(self.MONITOR_INTERVAL)
 
 
 async def main():
@@ -347,9 +348,10 @@ async def main():
     
     BOT_TOKEN = config['BOT_TOKEN']
     CHAT_ID = config['CHAT_ID']
+    MONITOR_INTERVAL = config.get('MONITOR_INTERVAL', 60)  # Default to 60 if not specified
     
     logger.info("Starting bot...")
-    monitor = FlatMonitor(BOT_TOKEN, CHAT_ID)
+    monitor = FlatMonitor(BOT_TOKEN, CHAT_ID, MONITOR_INTERVAL)
 
     # Create application with proper update settings
     application = (
