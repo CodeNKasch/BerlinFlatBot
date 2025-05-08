@@ -5,8 +5,9 @@ from datetime import datetime
 
 import aiohttp
 from bs4 import BeautifulSoup
-from telegram import Bot
+from telegram import Bot, Update
 from telegram.error import TelegramError
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # Configure logging
 logging.basicConfig(
@@ -22,6 +23,8 @@ class FlatMonitor:
         self.chat_id = chat_id
         self.last_flats = set()
         self.url = "https://inberlinwohnen.de/wohnungsfinder/"
+        self.current_flats = []  # Store current flats
+        self.application = None  # Store application reference
         logger.info("FlatMonitor initialized")
 
     async def send_welcome(self):
@@ -29,7 +32,7 @@ class FlatMonitor:
         try:
             await self.bot.send_message(
                 chat_id=self.chat_id,
-                text="🏠 *Flat Monitor Started*\nI will notify you about new flats every minute!",
+                text="🏠 *Flat Monitor Started*\nI will notify you about new flats every minute!\nUse !list to see all current flats.",
                 parse_mode="Markdown",
             )
             logger.info(f"Welcome message sent to chat {self.chat_id}")
@@ -99,6 +102,7 @@ class FlatMonitor:
                                 flats.append(flat_details)
 
                         logger.info(f"Found {len(flats)} flats")
+                        self.current_flats = flats  # Store the current flats
                         return flats
                     else:
                         logger.error(
@@ -175,6 +179,52 @@ class FlatMonitor:
             except TelegramError as e:
                 logger.error(f"Failed to send non-WBS update: {e}")
 
+    async def handle_list_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle the !list command."""
+        if str(update.effective_chat.id) != self.chat_id:
+            return
+
+        # Fetch latest flats
+        flats = await self.fetch_flats()
+        
+        if not flats:
+            await update.message.reply_text("No flats available at the moment.")
+            return
+
+        # Split flats into WBS and non-WBS
+        wbs_flats = [f for f in flats if f["wbs_required"]]
+        non_wbs_flats = [f for f in flats if not f["wbs_required"]]
+
+        # Send WBS flats first
+        if wbs_flats:
+            message = f"🏠 *Current WBS Flats* ({len(wbs_flats)})\n\n"
+            for flat in wbs_flats:
+                message += self.format_flat_message(flat) + "\n\n"
+
+            try:
+                await update.message.reply_text(
+                    text=message,
+                    parse_mode="Markdown",
+                    disable_web_page_preview=True,
+                )
+            except TelegramError as e:
+                logger.error(f"Failed to send WBS list: {e}")
+
+        # Send non-WBS flats
+        if non_wbs_flats:
+            message = f"✅ *Current Non-WBS Flats* ({len(non_wbs_flats)})\n\n"
+            for flat in non_wbs_flats:
+                message += self.format_flat_message(flat) + "\n\n"
+
+            try:
+                await update.message.reply_text(
+                    text=message,
+                    parse_mode="Markdown",
+                    disable_web_page_preview=True,
+                )
+            except TelegramError as e:
+                logger.error(f"Failed to send non-WBS list: {e}")
+
     async def monitor(self):
         """Monitor the website for new flats."""
         logger.info("Starting monitoring loop...")
@@ -209,27 +259,49 @@ class FlatMonitor:
 
 
 async def main():
-    try:
-        # Load configuration from config.json
-        with open('config.json', 'r') as f:
-            config = json.load(f)
-        
-        BOT_TOKEN = config['BOT_TOKEN']
-        CHAT_ID = config['CHAT_ID']
-        
-        logger.info("Starting bot...")
-        monitor = FlatMonitor(BOT_TOKEN, CHAT_ID)
-        await monitor.monitor()
-    except FileNotFoundError:
-        logger.error("config.json file not found. Please create it with BOT_TOKEN and CHAT_ID.")
-        return
-    except json.JSONDecodeError:
-        logger.error("Invalid JSON in config.json file.")
-        return
-    except KeyError as e:
-        logger.error(f"Missing required configuration key: {e}")
-        return
+    # Load configuration from config.json
+    with open('config.json', 'r') as f:
+        config = json.load(f)
+    
+    BOT_TOKEN = config['BOT_TOKEN']
+    CHAT_ID = config['CHAT_ID']
+    
+    logger.info("Starting bot...")
+    monitor = FlatMonitor(BOT_TOKEN, CHAT_ID)
 
+    # Create application
+    application = Application.builder().token(BOT_TOKEN).build()
+    monitor.application = application  # Store application reference
+
+    # Add message handler for !list command
+    application.add_handler(MessageHandler(
+        filters.Regex(r'^!list$'),
+        monitor.handle_list_command
+    ))
+
+    # Start the monitoring in the background
+    monitoring_task = asyncio.create_task(monitor.monitor())
+    
+    # Start the bot
+    await application.initialize()
+    await application.start()
+    
+    try:
+        # Run the bot until stopped
+        await application.updater.start_polling()
+        # Keep the bot running
+        while True:
+            await asyncio.sleep(1)
+    except Exception as e:
+        logger.error(f"Error during polling: {e}")
+    finally:
+        # Clean up
+        monitoring_task.cancel()
+        try:
+            await monitoring_task
+        except asyncio.CancelledError:
+            pass
+        await application.stop()
 
 if __name__ == "__main__":
     try:
