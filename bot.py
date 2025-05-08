@@ -6,7 +6,7 @@ from datetime import datetime
 import aiohttp
 from bs4 import BeautifulSoup
 from telegram import Bot, Update
-from telegram.error import TelegramError
+from telegram.error import TelegramError, ChatMigrated
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # Configure logging
@@ -17,10 +17,11 @@ logger = logging.getLogger(__name__)
 
 
 class FlatMonitor:
-    def __init__(self, bot_token, chat_id, monitor_interval=60):
+    def __init__(self, bot_token, chat_id, private_chat_id, monitor_interval=60):
         """Initialize the monitor with bot token and chat ID."""
         self.bot = Bot(token=bot_token)
         self.chat_id = chat_id
+        self.private_chat_id = private_chat_id
         self.last_flats = set()
         self.url = "https://inberlinwohnen.de/wohnungsfinder/"
         self.current_flats = []  # Store current flats
@@ -42,7 +43,32 @@ class FlatMonitor:
             )
             logger.info(f"Welcome message sent to chat {self.chat_id}")
         except TelegramError as e:
-            logger.error(f"Failed to send welcome message: {e}")
+            error_msg = f"Failed to send welcome message: {str(e)}"
+            logger.error(error_msg)
+            await self.send_error_notification(error_msg)
+            
+            # If it's a ChatMigrated error, update the chat ID and try again
+            if isinstance(e, ChatMigrated):
+                self.chat_id = str(e.new_chat_id)
+                logger.info(f"Updated chat ID to {self.chat_id}")
+                try:
+                    await self.bot.send_message(
+                        chat_id=self.chat_id,
+                        text="🏠 *Flat Monitor Started*\n\n"
+                             "I will notify you about new flats every minute!\n\n"
+                             "Available commands:\n"
+                             "• /list - Show all current flats\n"
+                             "• /help - Show this help message",
+                        parse_mode="Markdown",
+                    )
+                    logger.info(f"Welcome message sent to new chat {self.chat_id}")
+                    return
+                except TelegramError as retry_error:
+                    error_msg = f"Failed to send welcome message to new chat: {str(retry_error)}"
+                    logger.error(error_msg)
+                    await self.send_error_notification(error_msg)
+            
+            # Only exit if we couldn't recover from the error
             exit()
 
     async def handle_help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -303,6 +329,18 @@ class FlatMonitor:
             except TelegramError as e:
                 logger.error(f"Failed to send non-WBS list: {e}")
 
+    async def send_error_notification(self, error_message):
+        """Send error notification to private chat."""
+        try:
+            await self.bot.send_message(
+                chat_id=self.private_chat_id,
+                text=f"⚠️ *Error in Flat Monitor*\n\n{error_message}",
+                parse_mode="Markdown",
+            )
+            logger.info(f"Error notification sent to private chat {self.private_chat_id}")
+        except TelegramError as e:
+            logger.error(f"Failed to send error notification: {e}")
+
     async def monitor(self):
         """Monitor the website for new flats."""
         logger.info("Starting monitoring loop...")
@@ -310,9 +348,15 @@ class FlatMonitor:
         await self.send_welcome()
 
         # Initialize last_flats with current flats to avoid sending all flats as new
-        initial_flats = await self.fetch_flats()
-        self.last_flats = {flat["id"] for flat in initial_flats}
-        logger.info(f"Initialized with {len(self.last_flats)} existing flats")
+        try:
+            initial_flats = await self.fetch_flats()
+            self.last_flats = {flat["id"] for flat in initial_flats}
+            logger.info(f"Initialized with {len(self.last_flats)} existing flats")
+        except Exception as e:
+            error_msg = f"Failed to initialize flats: {str(e)}"
+            logger.error(error_msg)
+            await self.send_error_notification(error_msg)
+            return
 
         while True:
             try:
@@ -335,7 +379,9 @@ class FlatMonitor:
                 self.last_flats = current_flat_set
 
             except Exception as e:
-                logger.error(f"Error during monitoring: {e}")
+                error_msg = f"Error during monitoring: {str(e)}"
+                logger.error(error_msg)
+                await self.send_error_notification(error_msg)
 
             logger.info(f"Waiting {self.MONITOR_INTERVAL} seconds before next check...")
             await asyncio.sleep(self.MONITOR_INTERVAL)
@@ -349,6 +395,7 @@ async def main():
         
         BOT_TOKEN = config['BOT_TOKEN']
         CHAT_ID = config['CHAT_ID']
+        PRIVATE_CHAT_ID = config['PRIVATE_CHAT_ID']
         MONITOR_INTERVAL = int(config.get('MONITOR_INTERVAL', 60))  # Ensure it's an integer
         
         logger.info(f"Loaded configuration with monitor interval: {MONITOR_INTERVAL} seconds")
@@ -366,7 +413,7 @@ async def main():
         return
     
     logger.info("Starting bot...")
-    monitor = FlatMonitor(BOT_TOKEN, CHAT_ID, MONITOR_INTERVAL)
+    monitor = FlatMonitor(BOT_TOKEN, CHAT_ID, PRIVATE_CHAT_ID, MONITOR_INTERVAL)
 
     # Create application with proper update settings
     application = (
