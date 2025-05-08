@@ -1,48 +1,52 @@
-# Berlin Flat Monitor Bot
+# Berlin Flat Bot
 
-A Telegram bot that monitors [inberlinwohnen.de](https://inberlinwohnen.de/wohnungsfinder/) for new flats and notifies you in real-time.
+A Telegram bot that monitors inberlinwohnen.de for new flats and notifies you when they appear.
 
 ## Features
 
-- 🔍 Monitors inberlinwohnen.de every minute for new flats
-- 🏠 Notifies about new WBS flats
-- ✅ Notifies about new non-WBS flats
-- 📋 Shows all current flats on demand
+- Monitors inberlinwohnen.de for new flats
+- Sends notifications for new WBS and non-WBS flats
+- Lists current flats with the `/list` command
+- Shows help information with the `/help` command
 
-## Commands
+## Configuration
 
-- `/list` - Show all current flats
-- `/help` - Show help message
+The bot uses a `config.json` file for configuration. Create this file in the root directory with the following structure:
 
-## Setup
+```json
+{
+    "BOT_TOKEN": "YOUR_BOT_TOKEN",
+    "CHAT_ID": "YOUR_CHAT_ID",
+    "MONITOR_INTERVAL": 60
+}
+```
 
-1. Create a new Telegram bot using [@BotFather](https://t.me/botfather)
-2. Get your bot token and chat ID
-3. Create a `config.json` file with your credentials:
-   ```json
-   {
-       "BOT_TOKEN": "your_bot_token_here",
-       "CHAT_ID": "your_chat_id_here"
-   }
-   ```
-4. Install the required Python packages:
+### Configuration Options
+
+- `BOT_TOKEN`: Your Telegram bot token (obtained from @BotFather)
+- `CHAT_ID`: The ID of the chat where the bot should send notifications
+- `MONITOR_INTERVAL`: The interval in seconds between checks for new flats (default: 60)
+
+## Installation
+
+1. Clone this repository
+2. Install the required packages:
    ```bash
-   pip install python-telegram-bot beautifulsoup4 aiohttp
+   pip install -r requirements.txt
    ```
-5. Run the bot:
+3. Create and configure your `config.json` file
+4. Run the bot:
    ```bash
-   python3 bot.py
+   python bot.py
    ```
+
+## Usage
+
+- The bot will automatically start monitoring for new flats
+- Use `/list` to see current flats (limited to 5 per category)
+- Use `/help` to see available commands
 
 ## Requirements
 
 - Python 3.7+
-- python-telegram-bot
-- beautifulsoup4
-- aiohttp
-
-## Notes
-
-- The bot must be added to a group chat to work
-- Make sure to set the correct chat ID in the config file
-- The bot will automatically notify about new flats every minute 
+- Required packages listed in requirements.txt 
