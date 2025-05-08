@@ -1,6 +1,6 @@
 # Telegram Bot for Flat Monitoring
 
-This bot monitors the inberlinwohnen.de website for new flat listings and sends updates to a Telegram group. It checks for new listings every minute and provides detailed information about each flat.
+This bot monitors the [inberlinwohnen.de](https://inberlinwohnen.de/wohnungsfinder/) website for new flat listings and sends updates to a [Telegram group](https://web.telegram.org). It checks for new listings every minute and provides detailed information about each flat.
 
 ## Features
 
