@@ -308,6 +308,11 @@ class FlatMonitor:
         # Send welcome message when starting
         await self.send_welcome()
 
+        # Initialize last_flats with current flats to avoid sending all flats as new
+        initial_flats = await self.fetch_flats()
+        self.last_flats = {flat["id"] for flat in initial_flats}
+        logger.info(f"Initialized with {len(self.last_flats)} existing flats")
+
         while True:
             try:
                 logger.info("Checking for new flats...")
