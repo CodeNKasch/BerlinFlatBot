@@ -1,0 +1,13 @@
+[Unit]
+Description=Runs the python backend for a telegram bot.
+After=network.target
+
+[Service]
+WorkingDirectory=/home/user/Projects/BerlinFlatBot
+ExecStart=/usr/bin/python3 /home/user/Projects/BerlinFlatBot/bot.py
+User=user
+Group=user
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

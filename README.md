@@ -15,9 +15,9 @@ The bot uses a `config.json` file for configuration. Create this file in the roo
 
 ```json
 {
-    "BOT_TOKEN": "YOUR_BOT_TOKEN",
-    "CHAT_ID": "YOUR_CHAT_ID",
-    "MONITOR_INTERVAL": 60
+  "BOT_TOKEN": "YOUR_BOT_TOKEN",
+  "CHAT_ID": "YOUR_CHAT_ID",
+  "MONITOR_INTERVAL": 60
 }
 ```
 
@@ -46,7 +46,33 @@ The bot uses a `config.json` file for configuration. Create this file in the roo
 - Use `/list` to see current flats (limited to 5 per category)
 - Use `/help` to see available commands
 
+## Service
+
+To Run it as a debian service at startup you can use
+
+```bash
+cat > /etc/systemd/system/telegram-bot.service <<EOF
+[Unit]
+Description=Runs the python backend for a telegram bot.
+After=network.target
+
+[Service]
+WorkingDirectory=/home/user/Projects/BerlinFlatBot
+# use your project path and user!
+ExecStart=/usr/bin/python3 /home/user/Projects/BerlinFlatBot/bot.py
+User=user
+Group=user
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl enable telegram-bot
+sudo reboot
+```
+
 ## Requirements
 
 - Python 3.7+
-- Required packages listed in requirements.txt 
+- Required packages listed in requirements.txt
