@@ -1,103 +1,48 @@
-# 🏠 Telegram Bot for Flat Monitoring 🔍
+# Berlin Flat Monitor Bot
 
-This bot monitors the [inberlinwohnen.de](https://inberlinwohnen.de/wohnungsfinder/) website for new flat listings and sends updates to a [Telegram group](https://web.telegram.org). It checks for new listings every minute and provides detailed information about each flat.
-
-![preview](ReadmeImage.jpg)
+A Telegram bot that monitors [inberlinwohnen.de](https://inberlinwohnen.de/wohnungsfinder/) for new flats and notifies you in real-time.
 
 ## Features
 
-- Monitors inberlinwohnen.de every minute for new flats
-- Extracts detailed information about each flat:
-  - Address
-  - Number of rooms
-  - Living space
-  - WBS status
-  - Move-in date
-  - Floor
-  - Bathroom
-  - Year built
-- Separates flats into WBS and non-WBS categories
-- Sends formatted messages with all details and links
+- 🔍 Monitors inberlinwohnen.de every minute for new flats
+- 🏠 Notifies about new WBS flats
+- ✅ Notifies about new non-WBS flats
+- 📋 Shows all current flats on demand
 
-## Setup Instructions
+## Commands
 
-1. First, create a new bot and get your bot token:
-   - Open Telegram and search for "@BotFather"
-   - Start a chat with BotFather
-   - Send the command `/newbot`
-   - Follow the instructions to create your bot
-   - BotFather will give you a token - save this token
+- `/list` - Show all current flats
+- `/help` - Show help message
 
-2. Install the required dependencies:
+## Setup
+
+1. Create a new Telegram bot using [@BotFather](https://t.me/botfather)
+2. Get your bot token and chat ID
+3. Create a `config.json` file with your credentials:
+   ```json
+   {
+       "BOT_TOKEN": "your_bot_token_here",
+       "CHAT_ID": "your_chat_id_here"
+   }
+   ```
+4. Install the required Python packages:
    ```bash
-   pip install -r requirements.txt
+   pip install python-telegram-bot beautifulsoup4 aiohttp
+   ```
+5. Run the bot:
+   ```bash
+   python3 bot.py
    ```
 
-3. Get your chat ID:
-   - Add your bot to the group where you want to send messages
-   - Send a message in the group
-   - Visit this URL in your browser (replace YOUR_BOT_TOKEN with your actual token):
-     ```
-     https://api.telegram.org/botYOUR_BOT_TOKEN/getUpdates
-     ```
-   - Look for the "chat" object in the response, which will contain the "id" field
-   - The chat ID will be a negative number for groups
+## Requirements
 
-4. Update the `bot.py` file:
-   - Replace `YOUR_BOT_TOKEN` with your actual bot token
-   - Replace `YOUR_CHAT_ID` with your actual chat ID
-
-## Usage
-
-To start monitoring for new flats, run:
-```bash
-python3 bot.py
-```
-
-## Example Output
-
-The bot sends two types of messages:
-
-### WBS Flats
-```
-🏠 New WBS Flats Available! (1)
-
-*Flat Title*
-• Adresse: Example Street 123
-• Zimmeranzahl: 2
-• Wohnfläche: 60 m²
-• WBS: erforderlich
-• Bezugsfertig ab: 01.01.2024
-• Etage: 3
-• Badezimmer: 1
-• Baujahr: 2020
-
-[View Details](link)
-```
-
-### Non-WBS Flats
-```
-✅ New Non-WBS Flats Available! (1)
-
-*Flat Title*
-• Adresse: Example Street 456
-• Zimmeranzahl: 3
-• Wohnfläche: 75 m²
-• Bezugsfertig ab: 01.02.2024
-• Etage: 4
-• Badezimmer: 1
-• Baujahr: 2021
-
-[View Details](link)
-```
+- Python 3.7+
+- python-telegram-bot
+- beautifulsoup4
+- aiohttp
 
 ## Notes
 
-- The bot uses the flat's element ID (e.g., "flat_1271141") as a unique identifier
-- Non-WBS flats are marked with a green checkmark (✅)
-- WBS flats are marked with a house emoji (🏠)
-- Each message includes a link to view more details about the flat
-- The bot checks for new listings every minute
-- Make sure your bot has permission to send messages in the group
-- The bot must be a member of the group to send messages
-- Keep your bot token secure and never share it publicly 
+- The bot must be added to a group chat to work
+- Make sure to set the correct chat ID in the config file
+- The bot will automatically notify about new flats every minute 
