@@ -74,31 +74,51 @@ class FlatMonitor:
         try:
             # Get the flat ID
             flat_id = flat_element.get("id", "")
+            logger.debug(f"Processing flat with ID: {flat_id}")
 
-            # Extract title
-            title = flat_element.find("h3")
+            # Extract title from h2
+            title = flat_element.find("h2")
             title_text = title.text.strip() if title else "No title"
+            logger.debug(f"Found title: {title_text}")
 
             # Extract link
-            link = (
-                f"https://inberlinwohnen.de{title.find('a')['href']}"
-                if title and title.find("a")
-                else None
-            )
+            link = None
+            link_element = flat_element.find("a", class_="org-but")
+            if link_element:
+                link = link_element["href"]
+                if not link.startswith("http"):
+                    link = f"https://inberlinwohnen.de{link}"
+                logger.debug(f"Found link: {link}")
 
-            # Extract details from the table
+            # Extract details from the tables
             details = {}
-            table = flat_element.find("table")
-            if table:
+            
+            # Find all tables in the flat element
+            tables = flat_element.find_all("table", class_="tb-small-data")
+            for table in tables:
                 for row in table.find_all("tr"):
-                    cells = row.find_all("td")
-                    if len(cells) >= 2:
-                        key = cells[0].text.strip().rstrip(":")
-                        value = cells[1].text.strip()
+                    th = row.find("th")
+                    td = row.find("td")
+                    if th and td:
+                        key = th.text.strip().rstrip(":")
+                        value = td.text.strip()
                         details[key] = value
+                        logger.debug(f"Found detail - {key}: {value}")
 
-            # Check WBS status
-            wbs_required = details.get("WBS", "").lower() == "erforderlich"
+            # Extract features from the hackerl spans
+            features = []
+            feature_spans = flat_element.find_all("span", class_="hackerl")
+            for span in feature_spans:
+                features.append(span.text.strip())
+            if features:
+                details["Features"] = ", ".join(features)
+
+            # Check WBS status - not present in the example, but keeping the logic
+            wbs_required = False
+            wbs_text = details.get("WBS", "").lower()
+            if "erforderlich" in wbs_text or "wbs" in wbs_text:
+                wbs_required = True
+            logger.debug(f"WBS required: {wbs_required}")
 
             return {
                 "id": flat_id,
@@ -119,18 +139,23 @@ class FlatMonitor:
                 async with session.get(self.url) as response:
                     if response.status == 200:
                         html = await response.text()
+                        logger.info(f"Received HTML response of length: {len(html)}")
+                        
                         soup = BeautifulSoup(html, "html.parser")
                         flats = []
 
-                        # Find all flat listings
-                        for flat in soup.find_all(
-                            "div", id=lambda x: x and x.startswith("flat_")
-                        ):
+                        # Find all flat listings by looking for li elements with id starting with "flat_"
+                        flat_elements = soup.find_all("li", id=lambda x: x and x.startswith("flat_"))
+                        logger.info(f"Found {len(flat_elements)} flat elements in HTML")
+
+                        for flat in flat_elements:
                             flat_details = self.extract_flat_details(flat)
                             if flat_details:
                                 flats.append(flat_details)
+                            else:
+                                logger.warning(f"Failed to extract details for flat element: {flat.get('id', 'unknown')}")
 
-                        logger.info(f"Found {len(flats)} flats")
+                        logger.info(f"Successfully parsed {len(flats)} flats")
                         self.current_flats = flats  # Store the current flats
                         return flats
                     else:
@@ -178,33 +203,39 @@ class FlatMonitor:
 
         # Send WBS flats first
         if wbs_flats:
-            message = f"🏠 *New WBS Flats Available!* ({len(wbs_flats)})\n\n"
-            for flat in wbs_flats:
-                message += self.format_flat_message(flat) + "\n\n"
-
             try:
                 await self.bot.send_message(
                     chat_id=self.chat_id,
-                    text=message,
+                    text=f"🏠 *New WBS Flats Available!* ({len(wbs_flats)})",
                     parse_mode="Markdown",
-                    disable_web_page_preview=True,
                 )
+                for flat in wbs_flats:
+                    message = self.format_flat_message(flat)
+                    await self.bot.send_message(
+                        chat_id=self.chat_id,
+                        text=message,
+                        parse_mode="Markdown",
+                        disable_web_page_preview=True,
+                    )
             except TelegramError as e:
                 logger.error(f"Failed to send WBS update: {e}")
 
         # Send non-WBS flats
         if non_wbs_flats:
-            message = f"✅ *New Non-WBS Flats Available!* ({len(non_wbs_flats)})\n\n"
-            for flat in non_wbs_flats:
-                message += self.format_flat_message(flat) + "\n\n"
-
             try:
                 await self.bot.send_message(
                     chat_id=self.chat_id,
-                    text=message,
+                    text=f"✅ *New Non-WBS Flats Available!* ({len(non_wbs_flats)})",
                     parse_mode="Markdown",
-                    disable_web_page_preview=True,
                 )
+                for flat in non_wbs_flats:
+                    message = self.format_flat_message(flat)
+                    await self.bot.send_message(
+                        chat_id=self.chat_id,
+                        text=message,
+                        parse_mode="Markdown",
+                        disable_web_page_preview=True,
+                    )
             except TelegramError as e:
                 logger.error(f"Failed to send non-WBS update: {e}")
 
@@ -231,34 +262,42 @@ class FlatMonitor:
         wbs_flats = [f for f in flats if f["wbs_required"]]
         non_wbs_flats = [f for f in flats if not f["wbs_required"]]
 
-        # Send WBS flats first
+        # Send WBS flats first (limited to 5)
         if wbs_flats:
-            message = f"🏠 *Current WBS Flats* ({len(wbs_flats)})\n\n"
-            for flat in wbs_flats:
-                message += self.format_flat_message(flat) + "\n\n"
-
             try:
+                total_wbs = len(wbs_flats)
+                wbs_flats = wbs_flats[:5]  # Limit to 5 flats
                 await update.message.reply_text(
-                    text=message,
+                    text=f"🏠 *Current WBS Flats* (Showing 5 of {total_wbs})",
                     parse_mode="Markdown",
-                    disable_web_page_preview=True,
                 )
+                for flat in wbs_flats:
+                    message = self.format_flat_message(flat)
+                    await update.message.reply_text(
+                        text=message,
+                        parse_mode="Markdown",
+                        disable_web_page_preview=True,
+                    )
                 logger.info(f"Sent {len(wbs_flats)} WBS flats")
             except TelegramError as e:
                 logger.error(f"Failed to send WBS list: {e}")
 
-        # Send non-WBS flats
+        # Send non-WBS flats (limited to 5)
         if non_wbs_flats:
-            message = f"✅ *Current Non-WBS Flats* ({len(non_wbs_flats)})\n\n"
-            for flat in non_wbs_flats:
-                message += self.format_flat_message(flat) + "\n\n"
-
             try:
+                total_non_wbs = len(non_wbs_flats)
+                non_wbs_flats = non_wbs_flats[:5]  # Limit to 5 flats
                 await update.message.reply_text(
-                    text=message,
+                    text=f"✅ *Current Non-WBS Flats* (Showing 5 of {total_non_wbs})",
                     parse_mode="Markdown",
-                    disable_web_page_preview=True,
                 )
+                for flat in non_wbs_flats:
+                    message = self.format_flat_message(flat)
+                    await update.message.reply_text(
+                        text=message,
+                        parse_mode="Markdown",
+                        disable_web_page_preview=True,
+                    )
                 logger.info(f"Sent {len(non_wbs_flats)} non-WBS flats")
             except TelegramError as e:
                 logger.error(f"Failed to send non-WBS list: {e}")
