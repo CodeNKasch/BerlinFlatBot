@@ -343,12 +343,27 @@ class FlatMonitor:
 
 async def main():
     # Load configuration from config.json
-    with open('config.json', 'r') as f:
-        config = json.load(f)
-    
-    BOT_TOKEN = config['BOT_TOKEN']
-    CHAT_ID = config['CHAT_ID']
-    MONITOR_INTERVAL = config.get('MONITOR_INTERVAL', 60)  # Default to 60 if not specified
+    try:
+        with open('config.json', 'r') as f:
+            config = json.load(f)
+        
+        BOT_TOKEN = config['BOT_TOKEN']
+        CHAT_ID = config['CHAT_ID']
+        MONITOR_INTERVAL = int(config.get('MONITOR_INTERVAL', 60))  # Ensure it's an integer
+        
+        logger.info(f"Loaded configuration with monitor interval: {MONITOR_INTERVAL} seconds")
+    except FileNotFoundError:
+        logger.error("config.json not found!")
+        return
+    except json.JSONDecodeError:
+        logger.error("Invalid JSON in config.json!")
+        return
+    except KeyError as e:
+        logger.error(f"Missing required configuration: {e}")
+        return
+    except Exception as e:
+        logger.error(f"Error loading configuration: {e}")
+        return
     
     logger.info("Starting bot...")
     monitor = FlatMonitor(BOT_TOKEN, CHAT_ID, MONITOR_INTERVAL)
