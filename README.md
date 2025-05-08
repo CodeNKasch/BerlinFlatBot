@@ -1,6 +1,21 @@
-# Telegram Bot for Group Messages
+# Telegram Bot for Flat Monitoring
 
-This is a simple Python script that allows you to send messages to Telegram chat groups using a bot.
+This bot monitors the inberlinwohnen.de website for new flat listings and sends updates to a Telegram group. It checks for new listings every minute and provides detailed information about each flat.
+
+## Features
+
+- Monitors inberlinwohnen.de every minute for new flats
+- Extracts detailed information about each flat:
+  - Address
+  - Number of rooms
+  - Living space
+  - WBS status
+  - Move-in date
+  - Floor
+  - Bathroom
+  - Year built
+- Separates flats into WBS and non-WBS categories
+- Sends formatted messages with all details and links
 
 ## Setup Instructions
 
@@ -32,26 +47,55 @@ This is a simple Python script that allows you to send messages to Telegram chat
 
 ## Usage
 
-To send a message to your group, run:
+To start monitoring for new flats, run:
 ```bash
 python bot.py
 ```
 
-You can also import the `TelegramBot` class in your own scripts:
+## Example Output
 
-```python
-from bot import TelegramBot
-import asyncio
+The bot sends two types of messages:
 
-async def main():
-    bot = TelegramBot("YOUR_BOT_TOKEN")
-    await bot.send_message("YOUR_CHAT_ID", "Your message here")
+### WBS Flats
+```
+🏠 New WBS Flats Available! (1)
 
-asyncio.run(main())
+*Flat Title*
+• Adresse: Example Street 123
+• Zimmeranzahl: 2
+• Wohnfläche: 60 m²
+• WBS: erforderlich
+• Bezugsfertig ab: 01.01.2024
+• Etage: 3
+• Badezimmer: 1
+• Baujahr: 2020
+
+[View Details](link)
+```
+
+### Non-WBS Flats
+```
+✅ New Non-WBS Flats Available! (1)
+
+*Flat Title*
+• Adresse: Example Street 456
+• Zimmeranzahl: 3
+• Wohnfläche: 75 m²
+• Bezugsfertig ab: 01.02.2024
+• Etage: 4
+• Badezimmer: 1
+• Baujahr: 2021
+
+[View Details](link)
 ```
 
 ## Notes
 
+- The bot uses the flat's element ID (e.g., "flat_1271141") as a unique identifier
+- Non-WBS flats are marked with a green checkmark (✅)
+- WBS flats are marked with a house emoji (🏠)
+- Each message includes a link to view more details about the flat
+- The bot checks for new listings every minute
 - Make sure your bot has permission to send messages in the group
 - The bot must be a member of the group to send messages
 - Keep your bot token secure and never share it publicly 
