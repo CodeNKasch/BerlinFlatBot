@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import json
 from datetime import datetime
 
 import aiohttp
@@ -207,13 +208,26 @@ class FlatMonitor:
 
 
 async def main():
-    # Replace these with your actual values
-    BOT_TOKEN = "YOUR_BOT_TOKEN"  # "807133322:AAGceLJUwY4ckGl"
-    CHAT_ID = "YOUR_CHAT_ID"  # Replace with your group chat ID "-2423423423"
-    logger.info("Starting bot...")
-
-    monitor = FlatMonitor(BOT_TOKEN, CHAT_ID)
-    await monitor.monitor()
+    try:
+        # Load configuration from config.json
+        with open('config.json', 'r') as f:
+            config = json.load(f)
+        
+        BOT_TOKEN = config['BOT_TOKEN']
+        CHAT_ID = config['CHAT_ID']
+        
+        logger.info("Starting bot...")
+        monitor = FlatMonitor(BOT_TOKEN, CHAT_ID)
+        await monitor.monitor()
+    except FileNotFoundError:
+        logger.error("config.json file not found. Please create it with BOT_TOKEN and CHAT_ID.")
+        return
+    except json.JSONDecodeError:
+        logger.error("Invalid JSON in config.json file.")
+        return
+    except KeyError as e:
+        logger.error(f"Missing required configuration key: {e}")
+        return
 
 
 if __name__ == "__main__":
