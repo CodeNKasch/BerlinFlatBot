@@ -16,6 +16,7 @@ from scrapers import (
     DegewoScraper,
     GesobauScraper,
     GewobagScraper,
+    StadtUndLandScraper,  # Import the new scraper
     WebsiteUnavailableError,
     HighTrafficError
 )
@@ -139,7 +140,8 @@ class FlatMonitor:
             InBerlinWohnenScraper("https://inberlinwohnen.de/wohnungsfinder/"),
             DegewoScraper("https://www.degewo.de/immosuche"),
             GesobauScraper("https://www.gesobau.de/mieten/wohnungssuche/"),
-            GewobagScraper("https://www.gewobag.de/fuer-mieter-und-mietinteressenten/mietangebote/")
+            GewobagScraper("https://www.gewobag.de/fuer-mieter-und-mietinteressenten/mietangebote/?objekttyp%5B%5D=wohnung&gesamtmiete_von=&gesamtmiete_bis=&gesamtflaeche_von=&gesamtflaeche_bis=&zimmer_von=&zimmer_bis=&sort-by="),
+            StadtUndLandScraper("https://stadtundland.de/wohnungssuche")  # Add the new scraper here
         ]
         # Initialize status for all scrapers
         self.website_statuses = {scraper.__class__.__name__: "Not checked yet" for scraper in self.scrapers}
@@ -343,6 +345,13 @@ class FlatMonitor:
                 if flats:
                     flat = flats[0]  # Get the first flat
                     message += f"• {scraper.__class__.__name__}: {flat.title} - [Details]({flat.link})\n"
+
+                    # Escape special characters in title and ensure proper Markdown formatting
+                    safe_title = flat.title.replace('*', '\\*').replace('_', '\\_').replace('[', '\\[').replace(']', '\\]')
+                    message += f"• {scraper.__class__.__name__}: {safe_title}\n"
+                    if flat.link:
+                        message += f"  [View Details]({flat.link})\n"
+
                 else:
                     message += f"• {scraper.__class__.__name__}: No flats found.\n"
             except Exception as e:
