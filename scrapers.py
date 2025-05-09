@@ -190,7 +190,8 @@ class DegewoScraper(BaseScraper):
                 if soup.find("div", class_="error-message") and "high traffic" in soup.text.lower():
                     raise HighTrafficError("Website experiencing high traffic")
 
-                flat_elements = soup.find_all("div", class_="immo-item")
+                # Find all flat elements
+                flat_elements = soup.find_all("article", class_="article-list__item article-list__item--immosearch")
                 logger.info(f"Found {len(flat_elements)} flat elements in HTML")
 
                 for flat in flat_elements:
@@ -208,30 +209,50 @@ class DegewoScraper(BaseScraper):
 
     def _extract_flat_details(self, flat_element) -> Optional[FlatDetails]:
         try:
-            flat_id = flat_element.get("data-id", str(hash(flat_element.text)))
-            title_element = flat_element.find("h3", class_="immo-title")
+            # Extract the unique ID from the article's ID attribute
+            flat_id = flat_element.get("id", "").replace("immobilie-list-item-", "")
+
+            # Extract the title of the flat
+            title_element = flat_element.find("h2", class_="article__title")
             title_text = title_element.text.strip() if title_element else "No title"
 
-            link = None
-            link_element = flat_element.find("a", class_="immo-link")
-            if link_element:
-                link = link_element["href"]
-                if not link.startswith("http"):
-                    link = f"https://www.degewo.de{link}"
+            # Extract the link to the flat's details
+            link_element = flat_element.find("a", href=True)
+            link = link_element["href"] if link_element else None
+            if link and not link.startswith("http"):
+                link = f"https://www.degewo.de{link}"
 
+            # Extract additional details
             details = {}
-            details_element = flat_element.find("div", class_="immo-details")
-            if details_element:
-                for detail in details_element.find_all("div", class_="detail-item"):
-                    key = detail.find("span", class_="label")
-                    value = detail.find("span", class_="value")
-                    if key and value:
-                        details[key.text.strip().rstrip(":")] = value.text.strip()
+            address_element = flat_element.find("span", class_="article__meta")
+            if address_element:
+                details["Adresse"] = address_element.text.strip()
 
-            wbs_required = False
-            wbs_element = flat_element.find("div", class_="wbs-badge")
-            if wbs_element:
-                wbs_required = "WBS" in wbs_element.text.upper()
+            # Extract tags (e.g., Balkon/Loggia, Aufzug)
+            tags = flat_element.find_all("li", class_="article__tags-item")
+            if tags:
+                details["Tags"] = ", ".join(tag.text.strip() for tag in tags)
+
+            # Extract properties (e.g., Zimmer, Wohnfläche, Verfügbarkeit)
+            properties = flat_element.find_all("li", class_="article__properties-item")
+            for prop in properties:
+                svg = prop.find("svg")
+                if svg and "i-room" in svg.get("xlink:href", ""):
+                    details["Zimmeranzahl"] = prop.find("span", class_="text").text.strip()
+                elif svg and "i-squares" in svg.get("xlink:href", ""):
+                    details["Wohnfläche"] = prop.find("span", class_="text").text.strip()
+                elif svg and "i-calendar2" in svg.get("xlink:href", ""):
+                    details["Verfügbarkeit"] = prop.find("span", class_="text").text.strip()
+
+            # Extract price
+            price_element = flat_element.find("div", class_="article__price-tag")
+            if price_element:
+                price_text = price_element.find("span", class_="price")
+                if price_text:
+                    details["Warmmiete"] = price_text.text.strip()
+
+            # Determine if WBS is required
+            wbs_required = "WBS" in title_text.upper()
 
             return FlatDetails(
                 id=flat_id,
@@ -261,7 +282,8 @@ class GesobauScraper(BaseScraper):
                 if soup.find("div", class_="error-message") and "high traffic" in soup.text.lower():
                     raise HighTrafficError("Website experiencing high traffic")
 
-                flat_elements = soup.find_all("div", class_="property-item")
+                # Find all flat elements
+                flat_elements = soup.find_all("div", class_="teaserList__item")
                 logger.info(f"Found {len(flat_elements)} flat elements in HTML")
 
                 for flat in flat_elements:
@@ -279,30 +301,47 @@ class GesobauScraper(BaseScraper):
 
     def _extract_flat_details(self, flat_element) -> Optional[FlatDetails]:
         try:
-            flat_id = flat_element.get("data-id", str(hash(flat_element.text)))
-            title_element = flat_element.find("h2", class_="property-title")
-            title_text = title_element.text.strip() if title_element else "No title"
+            # Extract the unique ID from the article's ID attribute or generate one
+            flat_id = flat_element.get("id", str(hash(flat_element.text)))
 
-            link = None
-            link_element = flat_element.find("a", class_="property-link")
-            if link_element:
-                link = link_element["href"]
-                if not link.startswith("http"):
-                    link = f"https://www.gesobau.de{link}"
+            # Extract the title and link
+            title_element = flat_element.find("h3", class_="basicTeaser__title")
+            if not title_element:
+                return None
 
+            title_link = title_element.find("a")
+            if not title_link:
+                return None
+
+            title_text = title_link.text.strip()
+            link = title_link.get("href")
+            if link and not link.startswith("http"):
+                link = f"https://www.gesobau.de{link}"
+
+            # Extract details
             details = {}
-            details_element = flat_element.find("div", class_="property-details")
-            if details_element:
-                for detail in details_element.find_all("div", class_="detail-row"):
-                    key = detail.find("span", class_="detail-label")
-                    value = detail.find("span", class_="detail-value")
-                    if key and value:
-                        details[key.text.strip().rstrip(":")] = value.text.strip()
+            
+            # Extract address
+            address_element = flat_element.find("p", class_="basicTeaser__text")
+            if address_element:
+                details["Adresse"] = address_element.text.strip()
 
-            wbs_required = False
-            wbs_element = flat_element.find("div", class_="wbs-indicator")
-            if wbs_element:
-                wbs_required = "WBS" in wbs_element.text.upper()
+            # Extract region
+            region_element = flat_element.find("span", class_="meta__region")
+            if region_element:
+                details["Region"] = region_element.text.strip()
+
+            # Extract apartment info (rooms, size, price)
+            info_element = flat_element.find("div", class_="apartment__info")
+            if info_element:
+                info_spans = info_element.find_all("span")
+                if len(info_spans) >= 3:
+                    details["Zimmeranzahl"] = info_spans[0].text.strip()
+                    details["Wohnfläche"] = info_spans[1].text.strip()
+                    details["Warmmiete"] = info_spans[2].text.strip()
+
+            # Check for WBS requirement
+            wbs_required = "WBS" in title_text.upper()
 
             return FlatDetails(
                 id=flat_id,
@@ -332,7 +371,8 @@ class GewobagScraper(BaseScraper):
                 if soup.find("div", class_="error-message") and "high traffic" in soup.text.lower():
                     raise HighTrafficError("Website experiencing high traffic")
 
-                flat_elements = soup.find_all("div", class_="property-card")
+                # Find all flat elements
+                flat_elements = soup.find_all("article", class_="angebot-big-box")
                 logger.info(f"Found {len(flat_elements)} flat elements in HTML")
 
                 for flat in flat_elements:
@@ -350,30 +390,62 @@ class GewobagScraper(BaseScraper):
 
     def _extract_flat_details(self, flat_element) -> Optional[FlatDetails]:
         try:
-            flat_id = flat_element.get("data-id", str(hash(flat_element.text)))
-            title_element = flat_element.find("h3", class_="property-title")
-            title_text = title_element.text.strip() if title_element else "No title"
+            # Extract the unique ID from the article's ID attribute
+            flat_id = flat_element.get("id", "").replace("post-", "")
 
-            link = None
-            link_element = flat_element.find("a", class_="property-link")
-            if link_element:
-                link = link_element["href"]
-                if not link.startswith("http"):
-                    link = f"https://www.gewobag.de{link}"
+            # Extract title and link
+            title_element = flat_element.find("h3", class_="angebot-title")
+            if not title_element:
+                return None
 
+            title_text = title_element.text.strip()
+            
+            # Extract link from the footer
+            link_element = flat_element.find("a", class_="read-more-link")
+            link = link_element.get("href") if link_element else None
+
+            # Extract details from the info table
             details = {}
-            details_element = flat_element.find("div", class_="property-info")
-            if details_element:
-                for detail in details_element.find_all("div", class_="info-item"):
-                    key = detail.find("span", class_="info-label")
-                    value = detail.find("span", class_="info-value")
-                    if key and value:
-                        details[key.text.strip().rstrip(":")] = value.text.strip()
+            info_table = flat_element.find("table", class_="angebot-info")
+            if info_table:
+                # Extract region
+                region_row = info_table.find("tr", class_="angebot-region")
+                if region_row:
+                    details["Region"] = region_row.find("td").text.strip()
 
-            wbs_required = False
-            wbs_element = flat_element.find("div", class_="wbs-tag")
-            if wbs_element:
-                wbs_required = "WBS" in wbs_element.text.upper()
+                # Extract address
+                address_row = info_table.find("tr", class_="angebot-address")
+                if address_row:
+                    address_element = address_row.find("address")
+                    if address_element:
+                        details["Adresse"] = address_element.text.strip()
+
+                # Extract area info
+                area_row = info_table.find("tr", class_="angebot-area")
+                if area_row:
+                    details["Fläche"] = area_row.find("td").text.strip()
+
+                # Extract availability
+                availability_row = info_table.find("tr", class_="availability")
+                if availability_row:
+                    details["Frei ab"] = availability_row.find("td").text.strip()
+
+                # Extract costs
+                kosten_row = info_table.find("tr", class_="angebot-kosten")
+                if kosten_row:
+                    details["Gesamtmiete"] = kosten_row.find("td").text.strip()
+
+                # Extract characteristics
+                characteristics_row = info_table.find("tr", class_="angebot-characteristics")
+                if characteristics_row:
+                    characteristics = []
+                    for li in characteristics_row.find_all("li"):
+                        characteristics.append(li.text.strip())
+                    if characteristics:
+                        details["Besondere Eigenschaften"] = ", ".join(characteristics)
+
+            # Check for WBS requirement
+            wbs_required = "WBS" in title_text.upper()
 
             return FlatDetails(
                 id=flat_id,
@@ -385,4 +457,163 @@ class GewobagScraper(BaseScraper):
             )
         except Exception as e:
             logger.error(f"Error extracting flat details from Gewobag: {e}")
+            return None
+
+class StadtUndLandScraper(BaseScraper):
+    async def fetch_flats(self) -> List[FlatDetails]:
+        logger.info("Fetching flats from Stadt und Land...")
+        try:
+            async with aiohttp.ClientSession() as session:
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.4 Safari/605.1.15',
+                    'Accept': '*/*',
+                    'Accept-Language': 'en-GB,en;q=0.9',
+                    'Content-Type': 'text/plain;charset=UTF-8',
+                    'Cache-Control': 'max-age=0',
+                    'Connection': 'keep-alive',
+                    'Host': 'd2396ha8oiavw0.cloudfront.net',
+                    'Origin': 'https://stadtundland.de',
+                    'Referer': 'https://stadtundland.de/wohnungssuche',
+                    'Sec-Fetch-Dest': 'empty',
+                    'Sec-Fetch-Mode': 'cors',
+                    'Sec-Fetch-Site': 'cross-site',
+                }
+                
+                # API endpoint for flat listings
+                api_url = "https://d2396ha8oiavw0.cloudfront.net/sul-main/immoSearch"
+                
+                # Request payload
+                payload = {
+                    "offset": 0,
+                    "cat": "wohnung"
+                }
+                
+                logger.info(f"Making POST request to {api_url} with payload: {payload}")
+                
+                # Make the API request
+                async with session.post(
+                    api_url,
+                    json=payload,
+                    headers=headers,
+                    timeout=30,
+                    allow_redirects=True
+                ) as response:
+                    if response.status != 200:
+                        logger.error(f"API response status: {response.status}")
+                        logger.error(f"API response headers: {response.headers}")
+                        response_text = await response.text()
+                        logger.error(f"API response text: {response_text}")
+                        raise WebsiteUnavailableError(f"API returned status code {response.status}")
+                    
+                    try:
+                        data = await response.json()
+                        logger.info(f"Received API response with {data.get('count', 0)} total flats")
+                        
+                        if not data:
+                            logger.warning("API returned empty response")
+                            return []
+                            
+                        flats_data = data.get("data", [])
+                        logger.info(f"Found {len(flats_data)} flats in API response")
+                        
+                        if not flats_data:
+                            logger.warning("No flats found in API response")
+                            return []
+                        
+                        flats = []
+                        for flat_data in flats_data:
+                            logger.debug(f"Processing flat data: {flat_data}")
+                            flat_details = self._extract_flat_details(flat_data)
+                            if flat_details:
+                                flats.append(flat_details)
+                            else:
+                                logger.warning(f"Failed to extract details from flat data: {flat_data}")
+
+                        logger.info(f"Successfully processed {len(flats)} flats")
+                        return flats
+                        
+                    except Exception as e:
+                        logger.error(f"Failed to parse JSON response: {e}")
+                        response_text = await response.text()
+                        logger.error(f"Raw response text: {response_text}")
+                        raise WebsiteUnavailableError("Failed to parse API response")
+                    
+        except (WebsiteUnavailableError, HighTrafficError) as e:
+            logger.error(f"Error fetching flats from Stadt und Land: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error fetching flats from Stadt und Land: {e}")
+            logger.exception("Full traceback:")
+            return []
+
+    def _extract_flat_details(self, flat_data: dict) -> Optional[FlatDetails]:
+        try:
+            logger.debug(f"Extracting details from flat data: {flat_data}")
+            
+            # Extract basic information
+            flat_id = str(flat_data.get("details", {}).get("immoNumber", ""))
+            title = flat_data.get("headline", "")
+            
+            # Extract address components
+            address_data = flat_data.get("address", {})
+            address_parts = [
+                address_data.get("street", ""),
+                address_data.get("house_number", ""),
+                address_data.get("precinct", ""),
+                address_data.get("postal_code", ""),
+                address_data.get("city", "")
+            ]
+            address = ", ".join(filter(None, address_parts))
+            
+            if not flat_id or not title:
+                logger.warning(f"Missing required fields (id or title) in flat data: {flat_data}")
+                return None
+            
+            # Construct the link
+            link = f"https://stadtundland.de/wohnungssuche/{flat_id}" if flat_id else None
+
+            # Extract details
+            details_data = flat_data.get("details", {})
+            costs_data = flat_data.get("costs", {})
+            
+            details = {
+                "Adresse": address,
+                "Zimmeranzahl": str(details_data.get("rooms", "")),
+                "Wohnfläche": f"{details_data.get('livingSpace', '')} m²",
+                "Kaltmiete": f"{costs_data.get('coldRent', '')} €",
+                "Nebenkosten": f"{costs_data.get('additionalCosts', '')} €",
+                "Heizkosten": f"{costs_data.get('heatingCosts', '')} €",
+                "Gesamtmiete": f"{costs_data.get('totalRent', '')} €",
+            }
+
+            # Add special characteristics
+            special_features = []
+            if details_data.get("wheelchairFriendly"):
+                special_features.append("Rollstuhlgerecht")
+            if details_data.get("seniorsFriendly"):
+                special_features.append("Seniorengerecht")
+            if details_data.get("barrierFree"):
+                special_features.append("Barrierefrei")
+            if special_features:
+                details["Besondere Eigenschaften"] = ", ".join(special_features)
+
+            # Check for WBS requirement
+            wbs_required = "WBS" in title.upper() or any("WBS" in str(v).upper() for v in details.values())
+
+            flat = FlatDetails(
+                id=flat_id,
+                title=title,
+                link=link,
+                details=details,
+                wbs_required=wbs_required,
+                source="Stadt und Land"
+            )
+            
+            logger.debug(f"Successfully extracted flat details: {flat}")
+            return flat
+            
+        except Exception as e:
+            logger.error(f"Error extracting flat details: {e}")
+            logger.error(f"Flat data that caused error: {flat_data}")
+            logger.exception("Full traceback:")
             return None 
