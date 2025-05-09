@@ -80,7 +80,7 @@ class FlatMonitor:
             "🏠 *Berlin Flat Monitor Help*\n\n"
             "I monitor inberlinwohnen.de for new flats and notify you when they appear.\n\n"
             "*Available Commands:*\n"
-            "• /list - Show all current flats\n"
+            "• /list - Show the latest 5 flats\n"
             "• /help - Show this help message\n\n"
             "The bot will automatically notify you about:\n"
             "• New WBS flats 🏠\n"
@@ -197,7 +197,12 @@ class FlatMonitor:
     def format_flat_message(self, flat):
         """Format a single flat's details into a message."""
         details = flat["details"]
-        message = f"*{flat['title']}*\n"
+        if flat["wbs_required"]:
+            message = "🏠 (WBS) "
+        else:
+            message = "✅ (No WBS) "
+
+        message += f"*{flat['title']}*\n"
 
         # Add key details
         for key in [
@@ -224,19 +229,10 @@ class FlatMonitor:
         if not new_flats:
             return
 
-        # Split flats into WBS and non-WBS
-        wbs_flats = [f for f in new_flats if f["wbs_required"]]
-        non_wbs_flats = [f for f in new_flats if not f["wbs_required"]]
-
         # Send WBS flats first
-        if wbs_flats:
+        if new_flats:
             try:
-                await self.bot.send_message(
-                    chat_id=self.chat_id,
-                    text=f"🏠 *New WBS Flats Available!* ({len(wbs_flats)})",
-                    parse_mode="Markdown",
-                )
-                for flat in wbs_flats:
+                for flat in new_flats:
                     message = self.format_flat_message(flat)
                     await self.bot.send_message(
                         chat_id=self.chat_id,
@@ -245,26 +241,7 @@ class FlatMonitor:
                         disable_web_page_preview=True,
                     )
             except TelegramError as e:
-                logger.error(f"Failed to send WBS update: {e}")
-
-        # Send non-WBS flats
-        if non_wbs_flats:
-            try:
-                await self.bot.send_message(
-                    chat_id=self.chat_id,
-                    text=f"✅ *New Non-WBS Flats Available!* ({len(non_wbs_flats)})",
-                    parse_mode="Markdown",
-                )
-                for flat in non_wbs_flats:
-                    message = self.format_flat_message(flat)
-                    await self.bot.send_message(
-                        chat_id=self.chat_id,
-                        text=message,
-                        parse_mode="Markdown",
-                        disable_web_page_preview=True,
-                    )
-            except TelegramError as e:
-                logger.error(f"Failed to send non-WBS update: {e}")
+                logger.error(f"Failed to send update: {e}")
 
     async def handle_list_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle the /list command."""
@@ -285,49 +262,33 @@ class FlatMonitor:
             await update.message.reply_text("No flats available at the moment.")
             return
 
-        # Split flats into WBS and non-WBS
-        wbs_flats = [f for f in flats if f["wbs_required"]]
-        non_wbs_flats = [f for f in flats if not f["wbs_required"]]
-
-        # Send WBS flats first (limited to 5)
-        if wbs_flats:
+        # Send flats
+        if flats:
             try:
-                total_wbs = len(wbs_flats)
-                wbs_flats = wbs_flats[:5]  # Limit to 5 flats
-                await update.message.reply_text(
-                    text=f"🏠 *Current WBS Flats* (Showing 5 of {total_wbs})",
-                    parse_mode="Markdown",
-                )
-                for flat in wbs_flats:
+                total_flats = len(flats)
+                flats = flats[:5]  # Limit to 5 flats
+                for flat in flats:
                     message = self.format_flat_message(flat)
                     await update.message.reply_text(
                         text=message,
                         parse_mode="Markdown",
                         disable_web_page_preview=True,
                     )
-                logger.info(f"Sent {len(wbs_flats)} WBS flats")
+                logger.info(f"Sent {len(flats)} WBS flats")
             except TelegramError as e:
                 logger.error(f"Failed to send WBS list: {e}")
 
-        # Send non-WBS flats (limited to 5)
-        if non_wbs_flats:
-            try:
-                total_non_wbs = len(non_wbs_flats)
-                non_wbs_flats = non_wbs_flats[:5]  # Limit to 5 flats
-                await update.message.reply_text(
-                    text=f"✅ *Current Non-WBS Flats* (Showing 5 of {total_non_wbs})",
-                    parse_mode="Markdown",
-                )
-                for flat in non_wbs_flats:
-                    message = self.format_flat_message(flat)
-                    await update.message.reply_text(
-                        text=message,
-                        parse_mode="Markdown",
-                        disable_web_page_preview=True,
-                    )
-                logger.info(f"Sent {len(non_wbs_flats)} non-WBS flats")
-            except TelegramError as e:
-                logger.error(f"Failed to send non-WBS list: {e}")
+    async def send_error_notification(self, error_message):
+        """Send error notification to private chat."""
+        try:
+            await self.bot.send_message(
+                chat_id=self.private_chat_id,
+                text=f"⚠️ *Error in Flat Monitor*\n\n{error_message}",
+                parse_mode="Markdown",
+            )
+            logger.info(f"Error notification sent to private chat {self.private_chat_id}")
+        except TelegramError as e:
+            logger.error(f"Failed to send error notification: {e}")
 
     async def send_error_notification(self, error_message):
         """Send error notification to private chat."""
