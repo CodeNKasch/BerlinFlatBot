@@ -2,7 +2,6 @@ import asyncio
 import logging
 import json
 from datetime import datetime
-from dataclasses import dataclass
 from typing import List, Set, Dict, Optional
 
 import aiohttp
@@ -11,19 +10,21 @@ from telegram import Bot, Update
 from telegram.error import TelegramError, ChatMigrated
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
+from scrapers import (
+    FlatDetails,
+    InBerlinWohnenScraper,
+    DegewoScraper,
+    GesobauScraper,
+    GewobagScraper,
+    WebsiteUnavailableError,
+    HighTrafficError
+)
+
 # Configure logging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
-
-@dataclass
-class FlatDetails:
-    id: str
-    title: str
-    link: Optional[str]
-    details: Dict[str, str]
-    wbs_required: bool
 
 class Config:
     def __init__(self, config_path: str = 'config.json'):
@@ -62,7 +63,7 @@ class MessageFormatter:
         else:
             message = "✅ (No WBS) "
 
-        message += f"*{flat.title}*\n"
+        message += f"*{flat.title}* [{flat.source}]\n"
 
         # Add key details
         for key in [
@@ -74,6 +75,9 @@ class MessageFormatter:
             "Etage",
             "Badezimmer",
             "Baujahr",
+            "Miete",
+            "Kaltmiete",
+            "Warmmiete",
         ]:
             if key in flat.details:
                 message += f"• {key}: {flat.details[key]}\n"
@@ -88,102 +92,36 @@ class MessageFormatter:
     def format_help_message() -> str:
         return (
             "🏠 *Berlin Flat Monitor Help*\n\n"
-            "I monitor inberlinwohnen.de for new flats and notify you when they appear.\n\n"
+            "I monitor multiple housing websites for new flats and notify you when they appear.\n\n"
             "*Available Commands:*\n"
             "• /list - Show the latest 5 flats\n"
-            "• /help - Show this help message\n\n"
+            "• /help - Show this help message\n"
+            "• /status - Show the status of all monitored websites\n\n"
             "The bot will automatically notify you about:\n"
             "• New WBS flats 🏠\n"
-            "• New non-WBS flats ✅"
+            "• New non-WBS flats ✅\n"
+            "• Website availability issues ⚠️\n\n"
+            "Monitored websites:\n"
+            "• InBerlinWohnen\n"
+            "• Degewo\n"
+            "• Gesobau\n"
+            "• Gewobag"
         )
 
-class FlatScraper:
-    def __init__(self, url: str):
-        self.url = url
-
-    async def fetch_flats(self) -> List[FlatDetails]:
-        logger.info("Fetching flats from website...")
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(self.url) as response:
-                    if response.status == 200:
-                        html = await response.text()
-                        logger.info(f"Received HTML response of length: {len(html)}")
-                        
-                        soup = BeautifulSoup(html, "html.parser")
-                        flats = []
-
-                        flat_elements = soup.find_all("li", id=lambda x: x and x.startswith("flat_"))
-                        logger.info(f"Found {len(flat_elements)} flat elements in HTML")
-
-                        for flat in flat_elements:
-                            flat_details = self._extract_flat_details(flat)
-                            if flat_details:
-                                flats.append(flat_details)
-                            else:
-                                logger.warning(f"Failed to extract details for flat element: {flat.get('id', 'unknown')}")
-
-                        logger.info(f"Successfully parsed {len(flats)} flats")
-                        return flats
-                    else:
-                        logger.error(f"Failed to fetch flats. Status code: {response.status}")
-                        return []
-        except Exception as e:
-            logger.error(f"Error fetching flats: {e}")
-            return []
-
-    def _extract_flat_details(self, flat_element) -> Optional[FlatDetails]:
-        try:
-            flat_id = flat_element.get("id", "")
-            logger.debug(f"Processing flat with ID: {flat_id}")
-
-            title = flat_element.find("h2")
-            title_text = title.text.strip() if title else "No title"
-            logger.debug(f"Found title: {title_text}")
-
-            link = None
-            link_element = flat_element.find("a", class_="org-but")
-            if link_element:
-                link = link_element["href"]
-                if not link.startswith("http"):
-                    link = f"https://inberlinwohnen.de{link}"
-                logger.debug(f"Found link: {link}")
-
-            details = {}
-            tables = flat_element.find_all("table", class_="tb-small-data")
-            for table in tables:
-                for row in table.find_all("tr"):
-                    th = row.find("th")
-                    td = row.find("td")
-                    if th and td:
-                        key = th.text.strip().rstrip(":")
-                        value = td.text.strip()
-                        details[key] = value
-                        logger.debug(f"Found detail - {key}: {value}")
-
-            features = []
-            feature_spans = flat_element.find_all("span", class_="hackerl")
-            for span in feature_spans:
-                features.append(span.text.strip())
-            if features:
-                details["Features"] = ", ".join(features)
-
-            wbs_required = False
-            wbs_text = details.get("WBS", "").lower()
-            if "erforderlich" in wbs_text or "wbs" in wbs_text:
-                wbs_required = True
-            logger.debug(f"WBS required: {wbs_required}")
-
-            return FlatDetails(
-                id=flat_id,
-                title=title_text,
-                link=link,
-                details=details,
-                wbs_required=wbs_required
-            )
-        except Exception as e:
-            logger.error(f"Error extracting flat details: {e}")
-            return None
+    @staticmethod
+    def format_status_message(website_statuses: Dict[str, str]) -> str:
+        message = "🌐 *Website Status*\n\n"
+        for website, status in website_statuses.items():
+            status_lower = status.lower()
+            if "not checked yet" in status_lower:
+                message += f"⏳ {website}: {status}\n"
+            elif "unavailable" in status_lower or "error" in status_lower or "timeout" in status_lower:
+                message += f"⚠️ {website}: {status}\n"
+            elif "high traffic" in status_lower:
+                message += f"🚧 {website}: {status}\n"
+            else:
+                message += f"✅ {website}: {status}\n"
+        return message
 
 class FlatMonitor:
     def __init__(self, config: Config):
@@ -194,8 +132,17 @@ class FlatMonitor:
         self.last_flats: Set[str] = set()
         self.current_flats: List[FlatDetails] = []
         self.application: Optional[Application] = None
-        self.scraper = FlatScraper("https://inberlinwohnen.de/wohnungsfinder/")
         self.formatter = MessageFormatter()
+        
+        # Initialize scrapers and their status
+        self.scrapers = [
+            InBerlinWohnenScraper("https://inberlinwohnen.de/wohnungsfinder/"),
+            DegewoScraper("https://www.degewo.de/immosuche"),
+            GesobauScraper("https://www.gesobau.de/mieten/wohnungssuche/"),
+            GewobagScraper("https://www.gewobag.de/fuer-mieter-und-mietinteressenten/mietangebote/")
+        ]
+        # Initialize status for all scrapers
+        self.website_statuses = {scraper.__class__.__name__: "Not checked yet" for scraper in self.scrapers}
 
     async def send_welcome(self):
         try:
@@ -205,7 +152,8 @@ class FlatMonitor:
                      "I will notify you about new flats every minute!\n\n"
                      "Available commands:\n"
                      "• /list - Show all current flats\n"
-                     "• /help - Show this help message",
+                     "• /help - Show this help message\n"
+                     "• /status - Show website status",
                 parse_mode="Markdown",
             )
             logger.info(f"Welcome message sent to chat {self.chat_id}")
@@ -224,7 +172,8 @@ class FlatMonitor:
                              "I will notify you about new flats every minute!\n\n"
                              "Available commands:\n"
                              "• /list - Show all current flats\n"
-                             "• /help - Show this help message",
+                             "• /help - Show this help message\n"
+                             "• /status - Show website status",
                         parse_mode="Markdown",
                     )
                     logger.info(f"Welcome message sent to new chat {self.chat_id}")
@@ -248,6 +197,46 @@ class FlatMonitor:
             logger.info("Help message sent")
         except TelegramError as e:
             logger.error(f"Failed to send help message: {e}")
+
+    async def handle_status_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if str(update.effective_chat.id) != self.chat_id:
+            return
+
+        try:
+            # Update statuses before showing
+            await self.fetch_all_flats()
+            
+            status_message = self.formatter.format_status_message(self.website_statuses)
+            await update.message.reply_text(
+                text=status_message,
+                parse_mode="Markdown",
+            )
+            logger.info("Status message sent")
+        except TelegramError as e:
+            logger.error(f"Failed to send status message: {e}")
+            await self.send_error_notification(f"Failed to send status message: {e}")
+
+    async def fetch_all_flats(self) -> List[FlatDetails]:
+        """Fetch flats from all sources."""
+        all_flats = []
+        for scraper in self.scrapers:
+            try:
+                flats = await scraper.fetch_flats()
+                all_flats.extend(flats)
+                self.website_statuses[scraper.__class__.__name__] = "Available"
+            except WebsiteUnavailableError as e:
+                logger.error(f"Website unavailable: {e}")
+                self.website_statuses[scraper.__class__.__name__] = str(e)
+            except HighTrafficError as e:
+                logger.error(f"High traffic: {e}")
+                self.website_statuses[scraper.__class__.__name__] = str(e)
+            except asyncio.TimeoutError as e:
+                logger.error(f"Timeout error: {e}")
+                self.website_statuses[scraper.__class__.__name__] = "Timeout - Website not responding"
+            except Exception as e:
+                logger.error(f"Unexpected error: {e}")
+                self.website_statuses[scraper.__class__.__name__] = f"Error: {str(e)}"
+        return all_flats
 
     async def send_update(self, new_flats: List[FlatDetails]):
         if not new_flats:
@@ -276,7 +265,7 @@ class FlatMonitor:
 
         logger.info("Processing list command")
         
-        flats = await self.scraper.fetch_flats()
+        flats = await self.fetch_all_flats()
         
         if not flats:
             await update.message.reply_text("No flats available at the moment.")
@@ -312,7 +301,7 @@ class FlatMonitor:
         await self.send_welcome()
 
         try:
-            initial_flats = await self.scraper.fetch_flats()
+            initial_flats = await self.fetch_all_flats()
             self.last_flats = {flat.id for flat in initial_flats}
             logger.info(f"Initialized with {len(self.last_flats)} existing flats")
         except Exception as e:
@@ -324,7 +313,7 @@ class FlatMonitor:
         while True:
             try:
                 logger.info("Checking for new flats...")
-                current_flats = await self.scraper.fetch_flats()
+                current_flats = await self.fetch_all_flats()
                 current_flat_set = {flat.id for flat in current_flats}
 
                 new_flats = [flat for flat in current_flats if flat.id not in self.last_flats]
@@ -360,6 +349,7 @@ async def main():
 
         application.add_handler(CommandHandler("list", monitor.handle_list_command))
         application.add_handler(CommandHandler("help", monitor.handle_help_command))
+        application.add_handler(CommandHandler("status", monitor.handle_status_command))
 
         monitoring_task = asyncio.create_task(monitor.monitor())
         
