@@ -334,6 +334,22 @@ class FlatMonitor:
             logger.info(f"Waiting {self.config.monitor_interval} seconds before next check...")
             await asyncio.sleep(self.config.monitor_interval)
 
+    async def test_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handles the /test command to return the first result of each scraper."""
+        message = "🏠 *Test Results*\n\n"
+        for scraper in self.scrapers:
+            try:
+                flats = await scraper.fetch_flats()
+                if flats:
+                    flat = flats[0]  # Get the first flat
+                    message += f"• {scraper.__class__.__name__}: {flat.title} - [Details]({flat.link})\n"
+                else:
+                    message += f"• {scraper.__class__.__name__}: No flats found.\n"
+            except Exception as e:
+                message += f"• {scraper.__class__.__name__}: Error - {str(e)}\n"
+
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode="Markdown")
+
 async def main():
     try:
         config = Config()
@@ -350,6 +366,7 @@ async def main():
         application.add_handler(CommandHandler("list", monitor.handle_list_command))
         application.add_handler(CommandHandler("help", monitor.handle_help_command))
         application.add_handler(CommandHandler("status", monitor.handle_status_command))
+        application.add_handler(CommandHandler("test", monitor.test_command))
 
         monitoring_task = asyncio.create_task(monitor.monitor())
         
