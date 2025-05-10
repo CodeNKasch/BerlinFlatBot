@@ -116,7 +116,6 @@ class FlatMonitor:
         self.bot = Bot(token=config.bot_token)
         self.chat_id = config.chat_id
         self.private_chat_id = config.private_chat_id
-        self.last_flats: Set[str] = set()
         self.current_flats: List[FlatDetails] = []
         self.application: Optional[Application] = None
         self.formatter = MessageFormatter()
@@ -127,7 +126,7 @@ class FlatMonitor:
             DegewoScraper("https://www.degewo.de/immosuche"),
             GesobauScraper("https://www.gesobau.de/mieten/wohnungssuche/"),
             GewobagScraper("https://www.gewobag.de/fuer-mieter-und-mietinteressenten/mietangebote/?objekttyp%5B%5D=wohnung&gesamtmiete_von=&gesamtmiete_bis=&gesamtflaeche_von=&gesamtflaeche_bis=&zimmer_von=&zimmer_bis=&sort-by="),
-            StadtUndLandScraper("https://stadtundland.de/wohnungssuche")  # Add the new scraper here
+            StadtUndLandScraper("https://stadtundland.de/wohnungssuche")
         ]
         # Initialize status for all scrapers
         self.website_statuses = {scraper.__class__.__name__: "Not checked yet" for scraper in self.scrapers}
@@ -290,9 +289,9 @@ class FlatMonitor:
         await self.send_welcome()
 
         try:
-            initial_flats = await self.fetch_all_flats()
-            self.last_flats = {flat.id for flat in initial_flats}
-            logger.info(f"Initialized with {len(self.last_flats)} existing flats")
+            # Initial fetch
+            self.current_flats = await self.fetch_all_flats()
+            logger.info(f"Initialized with {len(self.current_flats)} existing flats")
         except Exception as e:
             error_msg = f"Failed to initialize flats: {str(e)}"
             logger.error(error_msg)
@@ -302,18 +301,18 @@ class FlatMonitor:
         while True:
             try:
                 logger.info("Checking for new flats...")
-                current_flats = await self.fetch_all_flats()
-                current_flat_set = {flat.id for flat in current_flats}
+                new_flats = await self.fetch_all_flats()
+                
+                # Find flats that weren't in the previous cache
+                current_ids = {flat.id for flat in self.current_flats}
+                new_entries = [flat for flat in new_flats if flat.id not in current_ids]
 
-                new_flats = [flat for flat in current_flats if flat.id not in self.last_flats]
-
-                if new_flats:
-                    logger.info(f"Found {len(new_flats)} new flats")
-                    await self.send_update(new_flats)
-                else:
-                    logger.info("No new flats found")
-
-                self.last_flats = current_flat_set
+                if new_entries:
+                    logger.info(f"Found {len(new_entries)} new flats")
+                    await self.send_update(new_entries)
+                
+                # Update the cache
+                self.current_flats = new_flats
 
             except Exception as e:
                 error_msg = f"Error during monitoring: {str(e)}"
