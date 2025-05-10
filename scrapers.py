@@ -560,7 +560,7 @@ class StadtUndLandScraper(BaseScraper):
         try:
             session = await get_session()
             headers = {
-                'Content-Type': 'text/plain;charset=UTF-8',
+                'Content-Type': 'application/json',
                 'Cache-Control': 'max-age=0',
                 'Connection': 'keep-alive',
                 'Host': 'd2396ha8oiavw0.cloudfront.net',
@@ -577,7 +577,7 @@ class StadtUndLandScraper(BaseScraper):
                 "cat": "wohnung"
             }
             
-            # Make the API request directly instead of using _make_request
+            # Make the API request directly
             async with session.post(
                 api_url,
                 json=payload,
@@ -597,6 +597,7 @@ class StadtUndLandScraper(BaseScraper):
                     flats_data = data.get("data", [])
                     
                     if not flats_data:
+                        logger.info("No flats found in Stadt und Land response")
                         return []
                     
                     flats = []
@@ -607,6 +608,7 @@ class StadtUndLandScraper(BaseScraper):
 
                     # Filter out duplicates
                     flats = self._filter_duplicates(flats)
+                    logger.info(f"Found {len(flats)} flats from Stadt und Land")
                     self._cleanup()
                     return flats
                     
