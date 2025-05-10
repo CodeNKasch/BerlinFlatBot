@@ -88,11 +88,11 @@ class MessageFormatter:
             "🏠 *Berlin Flat Monitor*\n\n"
             "I monitor multiple housing websites for new flats and notify you when they appear.\n\n"
             "*Commands:*\n"
-            "• /list - Show latest flats\n"
+            "• /list [scraper] - Show latest flats (optionally filter by scraper)\n"
             "• /help - Show this help\n"
             "• /status - Show website status\n"
             "• /test - Test all scrapers\n\n"
-            "*Monitored websites:*\n"
+            "*Available scrapers:*\n"
             "• InBerlinWohnen\n"
             "• Degewo\n"
             "• Gesobau\n"
@@ -258,6 +258,12 @@ class FlatMonitor:
         logger.info("Processing list command")
         logger.info(f"Current flats in cache: {len(self.current_flats)}")
         
+        # Get the scraper name from the command if provided
+        scraper_name = None
+        if context.args and len(context.args) > 0:
+            scraper_name = context.args[0].strip()
+            logger.info(f"Filtering by scraper: {scraper_name}")
+        
         # Use cached flats
         flats = self.current_flats
         
@@ -271,9 +277,24 @@ class FlatMonitor:
             return
 
         try:
+            # Filter flats by scraper if specified
+            if scraper_name:
+                flats = [flat for flat in flats if flat.source.lower() == scraper_name.lower()]
+                if not flats:
+                    await update.message.reply_text(f"No flats available from {scraper_name}.")
+                    return
+
             total_flats = len(flats)
             logger.info(f"Total flats found: {total_flats}")
             flats = flats[:5]  # Limit to 5 flats
+            
+            # Add a header message
+            header = f"Found {total_flats} flats"
+            if scraper_name:
+                header += f" from {scraper_name}"
+            header += f" (showing {len(flats)}):"
+            await update.message.reply_text(header)
+            
             for flat in flats:
                 message = self.formatter.format_flat_message(flat)
                 await update.message.reply_text(
