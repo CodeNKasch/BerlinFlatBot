@@ -7,8 +7,48 @@ import asyncio
 from datetime import datetime, timedelta
 import re
 from urllib.parse import quote
+import gc
+import ssl
+import certifi
 
 logger = logging.getLogger(__name__)
+
+# Global session for connection pooling
+_global_session = None
+
+async def get_session() -> aiohttp.ClientSession:
+    global _global_session
+    if _global_session is None or _global_session.closed:
+        # Create a custom SSL context that uses system certificates
+        ssl_context = ssl.create_default_context(cafile=certifi.where())
+        
+        # Configure TCP connector with optimized settings
+        connector = aiohttp.TCPConnector(
+            ssl=ssl_context,
+            limit=5,  # Limit concurrent connections
+            ttl_dns_cache=300,  # Cache DNS results for 5 minutes
+            use_dns_cache=True,
+            force_close=False,  # Keep connections alive
+            enable_cleanup_closed=True
+        )
+        
+        # Create session with optimized settings
+        _global_session = aiohttp.ClientSession(
+            connector=connector,
+            timeout=aiohttp.ClientTimeout(total=30),
+            headers={
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.4 Safari/605.1.15',
+                'Accept': '*/*',
+                'Accept-Language': 'en-GB,en;q=0.9',
+            }
+        )
+    return _global_session
+
+async def close_session():
+    global _global_session
+    if _global_session and not _global_session.closed:
+        await _global_session.close()
+        _global_session = None
 
 @dataclass
 class FlatDetails:
@@ -17,7 +57,11 @@ class FlatDetails:
     link: Optional[str]
     details: Dict[str, str]
     wbs_required: bool
-    source: str  # Website source
+    source: str
+
+    def __post_init__(self):
+        # Optimize memory usage by converting to tuple for immutable data
+        self.details = tuple(sorted(self.details.items()))
 
 class ScraperError(Exception):
     """Base exception for scraper errors"""
@@ -36,9 +80,10 @@ class BaseScraper:
         self.url = url
         self.last_error_time: Optional[datetime] = None
         self.error_count: int = 0
-        self.backoff_time: int = 60  # Initial backoff time in seconds
-        self.max_backoff_time: int = 3600  # Maximum backoff time (1 hour)
+        self.backoff_time: int = 60
+        self.max_backoff_time: int = 3600
         self.max_retries: int = 3
+        self._parser = 'html.parser'  # Use html.parser instead of lxml for lower memory usage
 
     async def fetch_flats(self) -> List[FlatDetails]:
         """Base method to fetch flats from a website."""
@@ -66,14 +111,13 @@ class BaseScraper:
         self.backoff_time = 60
         self.last_error_time = None
 
-    async def _make_request(self, session: aiohttp.ClientSession) -> Tuple[bool, str]:
-        """Make HTTP request with retry logic."""
+    async def _make_request(self, session: aiohttp.ClientSession, method: str = 'GET', **kwargs) -> Tuple[bool, str]:
         if self._check_backoff():
             raise WebsiteUnavailableError(f"Website is in backoff period. Retry in {self.backoff_time} seconds.")
 
         for attempt in range(self.max_retries):
             try:
-                async with session.get(self.url, timeout=30) as response:
+                async with session.request(method, self.url, **kwargs) as response:
                     if response.status == 200:
                         self._reset_backoff()
                         return True, await response.text()
@@ -87,7 +131,7 @@ class BaseScraper:
                 if attempt == self.max_retries - 1:
                     self._update_backoff()
                     raise WebsiteUnavailableError("Request timed out")
-                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                await asyncio.sleep(2 ** attempt)
             except aiohttp.ClientError as e:
                 if attempt == self.max_retries - 1:
                     self._update_backoff()
@@ -95,6 +139,14 @@ class BaseScraper:
                 await asyncio.sleep(2 ** attempt)
 
         return False, ""
+
+    def _parse_html(self, html: str) -> BeautifulSoup:
+        # Use html.parser for lower memory usage
+        return BeautifulSoup(html, self._parser)
+
+    def _cleanup(self):
+        # Force garbage collection after processing
+        gc.collect()
 
 class InBerlinWohnenScraper(BaseScraper):
     async def fetch_flats(self) -> List[FlatDetails]:
@@ -487,120 +539,88 @@ class StadtUndLandScraper(BaseScraper):
     async def fetch_flats(self) -> List[FlatDetails]:
         logger.info("Fetching flats from Stadt und Land...")
         try:
-            async with aiohttp.ClientSession() as session:
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.4 Safari/605.1.15',
-                    'Accept': '*/*',
-                    'Accept-Language': 'en-GB,en;q=0.9',
-                    'Content-Type': 'text/plain;charset=UTF-8',
-                    'Cache-Control': 'max-age=0',
-                    'Connection': 'keep-alive',
-                    'Host': 'd2396ha8oiavw0.cloudfront.net',
-                    'Origin': 'https://stadtundland.de',
-                    'Referer': 'https://stadtundland.de/wohnungssuche',
-                    'Sec-Fetch-Dest': 'empty',
-                    'Sec-Fetch-Mode': 'cors',
-                    'Sec-Fetch-Site': 'cross-site',
-                }
-                
-                # API endpoint for flat listings
-                api_url = "https://d2396ha8oiavw0.cloudfront.net/sul-main/immoSearch"
-                
-                # Request payload
-                payload = {
-                    "offset": 0,
-                    "cat": "wohnung"
-                }
-                
-                logger.info(f"Making POST request to {api_url} with payload: {payload}")
-                
-                # Make the API request
-                async with session.post(
-                    api_url,
-                    json=payload,
-                    headers=headers,
-                    timeout=30,
-                    allow_redirects=True
-                ) as response:
-                    if response.status != 200:
-                        logger.error(f"API response status: {response.status}")
-                        logger.error(f"API response headers: {response.headers}")
-                        response_text = await response.text()
-                        logger.error(f"API response text: {response_text}")
-                        raise WebsiteUnavailableError(f"API returned status code {response.status}")
-                    
-                    try:
-                        data = await response.json()
-                        logger.info(f"Received API response with {data.get('count', 0)} total flats")
-                        
-                        if not data:
-                            logger.warning("API returned empty response")
-                            return []
-                            
-                        flats_data = data.get("data", [])
-                        logger.info(f"Found {len(flats_data)} flats in API response")
-                        
-                        if not flats_data:
-                            logger.warning("No flats found in API response")
-                            return []
-                        
-                        flats = []
-                        for flat_data in flats_data:
-                            logger.debug(f"Processing flat data: {flat_data}")
-                            flat_details = self._extract_flat_details(flat_data)
-                            if flat_details:
-                                flats.append(flat_details)
-                            else:
-                                logger.warning(f"Failed to extract details from flat data: {flat_data}")
+            session = await get_session()
+            headers = {
+                'Content-Type': 'text/plain;charset=UTF-8',
+                'Cache-Control': 'max-age=0',
+                'Connection': 'keep-alive',
+                'Host': 'd2396ha8oiavw0.cloudfront.net',
+                'Origin': 'https://stadtundland.de',
+                'Referer': 'https://stadtundland.de/wohnungssuche',
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'cross-site',
+            }
+            
+            api_url = "https://d2396ha8oiavw0.cloudfront.net/sul-main/immoSearch"
+            payload = {
+                "offset": 0,
+                "cat": "wohnung"
+            }
+            
+            success, response_text = await self._make_request(
+                session,
+                method='POST',
+                url=api_url,
+                json=payload,
+                headers=headers
+            )
+            
+            if not success:
+                return []
 
-                        logger.info(f"Successfully processed {len(flats)} flats")
-                        return flats
-                        
-                    except Exception as e:
-                        logger.error(f"Failed to parse JSON response: {e}")
-                        response_text = await response.text()
-                        logger.error(f"Raw response text: {response_text}")
-                        raise WebsiteUnavailableError("Failed to parse API response")
-                    
+            try:
+                data = await response_text.json()
+                flats_data = data.get("data", [])
+                
+                if not flats_data:
+                    return []
+                
+                flats = []
+                for flat_data in flats_data:
+                    flat_details = self._extract_flat_details(flat_data)
+                    if flat_details:
+                        flats.append(flat_details)
+
+                self._cleanup()
+                return flats
+                
+            except Exception as e:
+                logger.error(f"Failed to parse JSON response: {e}")
+                raise WebsiteUnavailableError("Failed to parse API response")
+                
         except (WebsiteUnavailableError, HighTrafficError) as e:
             logger.error(f"Error fetching flats from Stadt und Land: {e}")
             raise
         except Exception as e:
             logger.error(f"Unexpected error fetching flats from Stadt und Land: {e}")
-            logger.exception("Full traceback:")
             return []
 
     def _extract_flat_details(self, flat_data: dict) -> Optional[FlatDetails]:
         try:
-            logger.debug(f"Extracting details from flat data: {flat_data}")
-            
-            # Extract basic information
-            flat_id = str(flat_data.get("details", {}).get("immoNumber", ""))
+            details_data = flat_data.get("details", {})
+            flat_id = str(details_data.get("immoNumber", ""))
             title = flat_data.get("headline", "")
             
-            # Extract address components
+            if not flat_id or not title:
+                return None
+            
+            # Optimize address construction
             address_data = flat_data.get("address", {})
-            address_parts = [
+            address = ", ".join(filter(None, [
                 address_data.get("street", ""),
                 address_data.get("house_number", ""),
                 address_data.get("precinct", ""),
                 address_data.get("postal_code", ""),
                 address_data.get("city", "")
-            ]
-            address = ", ".join(filter(None, address_parts))
+            ]))
             
-            if not flat_id or not title:
-                logger.warning(f"Missing required fields (id or title) in flat data: {flat_data}")
-                return None
-            
-            # Construct the link - using the correct URL format with URL encoded immoNumber
-            encoded_id = quote(flat_id, safe='')  # URL encode the flat ID
-            link = f"https://stadtundland.de/wohnungssuche/{encoded_id}" if flat_id else None
+            # URL encode the flat ID
+            encoded_id = quote(flat_id, safe='')
+            link = f"https://stadtundland.de/wohnungssuche/{encoded_id}"
 
-            # Extract details
-            details_data = flat_data.get("details", {})
+            # Optimize details dictionary construction
             costs_data = flat_data.get("costs", {})
-            
             details = {
                 "Adresse": address,
                 "Zimmeranzahl": str(details_data.get("rooms", "")),
@@ -611,21 +631,17 @@ class StadtUndLandScraper(BaseScraper):
                 "Gesamtmiete": f"{costs_data.get('totalRent', '')} €",
             }
 
-            # Add special characteristics
+            # Optimize special features list
             special_features = []
-            if details_data.get("wheelchairFriendly"):
-                special_features.append("Rollstuhlgerecht")
-            if details_data.get("seniorsFriendly"):
-                special_features.append("Seniorengerecht")
-            if details_data.get("barrierFree"):
-                special_features.append("Barrierefrei")
+            if details_data.get("wheelchairFriendly"): special_features.append("Rollstuhlgerecht")
+            if details_data.get("seniorsFriendly"): special_features.append("Seniorengerecht")
+            if details_data.get("barrierFree"): special_features.append("Barrierefrei")
             if special_features:
                 details["Besondere Eigenschaften"] = ", ".join(special_features)
 
-            # Check for WBS requirement
             wbs_required = "WBS" in title.upper() or any("WBS" in str(v).upper() for v in details.values())
 
-            flat = FlatDetails(
+            return FlatDetails(
                 id=flat_id,
                 title=title,
                 link=link,
@@ -634,11 +650,6 @@ class StadtUndLandScraper(BaseScraper):
                 source="Stadt und Land"
             )
             
-            logger.debug(f"Successfully extracted flat details: {flat}")
-            return flat
-            
         except Exception as e:
             logger.error(f"Error extracting flat details: {e}")
-            logger.error(f"Flat data that caused error: {flat_data}")
-            logger.exception("Full traceback:")
             return None 
