@@ -251,9 +251,15 @@ class FlatMonitor:
             return
 
         logger.info("Processing list command")
+        logger.info(f"Current flats in cache: {len(self.current_flats)}")
         
-        # Use cached flats instead of fetching new ones
+        # Use cached flats
         flats = self.current_flats
+        
+        if not flats:
+            logger.info("No flats in cache, fetching new ones...")
+            flats = await self.fetch_all_flats()
+            self.current_flats = flats  # Update cache with new flats
         
         if not flats:
             await update.message.reply_text("No flats available at the moment.")
@@ -261,6 +267,7 @@ class FlatMonitor:
 
         try:
             total_flats = len(flats)
+            logger.info(f"Total flats found: {total_flats}")
             flats = flats[:5]  # Limit to 5 flats
             for flat in flats:
                 message = self.formatter.format_flat_message(flat)
@@ -269,7 +276,7 @@ class FlatMonitor:
                     parse_mode="Markdown",
                     disable_web_page_preview=True,
                 )
-            logger.info(f"Sent {len(flats)} flats from cache")
+            logger.info(f"Sent {len(flats)} flats")
         except TelegramError as e:
             logger.error(f"Failed to send list: {e}")
 
