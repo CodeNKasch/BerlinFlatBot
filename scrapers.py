@@ -577,39 +577,43 @@ class StadtUndLandScraper(BaseScraper):
                 "cat": "wohnung"
             }
             
-            success, response_text = await self._make_request(
-                session,
-                method='POST',
-                url=api_url,
+            # Make the API request directly instead of using _make_request
+            async with session.post(
+                api_url,
                 json=payload,
-                headers=headers
-            )
-            
-            if not success:
-                return []
+                headers=headers,
+                timeout=30,
+                allow_redirects=True
+            ) as response:
+                if response.status != 200:
+                    logger.error(f"API response status: {response.status}")
+                    logger.error(f"API response headers: {response.headers}")
+                    response_text = await response.text()
+                    logger.error(f"API response text: {response_text}")
+                    raise WebsiteUnavailableError(f"API returned status code {response.status}")
+                
+                try:
+                    data = await response.json()
+                    flats_data = data.get("data", [])
+                    
+                    if not flats_data:
+                        return []
+                    
+                    flats = []
+                    for flat_data in flats_data:
+                        flat_details = self._extract_flat_details(flat_data)
+                        if flat_details:
+                            flats.append(flat_details)
 
-            try:
-                data = await response_text.json()
-                flats_data = data.get("data", [])
-                
-                if not flats_data:
-                    return []
-                
-                flats = []
-                for flat_data in flats_data:
-                    flat_details = self._extract_flat_details(flat_data)
-                    if flat_details:
-                        flats.append(flat_details)
-
-                # Filter out duplicates
-                flats = self._filter_duplicates(flats)
-                self._cleanup()
-                return flats
-                
-            except Exception as e:
-                logger.error(f"Failed to parse JSON response: {e}")
-                raise WebsiteUnavailableError("Failed to parse API response")
-                
+                    # Filter out duplicates
+                    flats = self._filter_duplicates(flats)
+                    self._cleanup()
+                    return flats
+                    
+                except Exception as e:
+                    logger.error(f"Failed to parse JSON response: {e}")
+                    raise WebsiteUnavailableError("Failed to parse API response")
+                    
         except (WebsiteUnavailableError, HighTrafficError) as e:
             logger.error(f"Error fetching flats from Stadt und Land: {e}")
             raise
