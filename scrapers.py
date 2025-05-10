@@ -67,8 +67,9 @@ class FlatDetails:
     source: str
 
     def __post_init__(self):
-        # Optimize memory usage by converting to tuple for immutable data
-        self.details = tuple(sorted(self.details.items()))
+        # Convert details to a regular dictionary if it's a tuple
+        if isinstance(self.details, tuple):
+            self.details = dict(self.details)
 
     def is_duplicate(self) -> bool:
         """Check if this flat has been seen before."""

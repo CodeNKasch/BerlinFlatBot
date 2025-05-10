@@ -69,22 +69,11 @@ class MessageFormatter:
         else:
             message += f"_{flat.title}_\n"
             
-        # Add key details in a clean format
-        for key in [
-            "Adresse",
-            "Zimmeranzahl",
-            "Wohnfläche",
-            "WBS",
-            "Bezugsfertig ab",
-            "Etage",
-            "Badezimmer",
-            "Baujahr",
-            "Miete",
-            "Kaltmiete",
-            "Warmmiete",
-        ]:
-            if key in flat.details:
-                message += f"• {key}: {flat.details[key]}\n"
+        # Add all available details
+        if flat.details:
+            for key, value in flat.details.items():
+                if value and value.strip():  # Only add non-empty values
+                    message += f"• {key}: {value}\n"
 
         return message
 
