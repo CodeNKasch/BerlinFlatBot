@@ -337,6 +337,7 @@ class FlatMonitor:
 
     async def test_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handles the /test command to return the first result of each scraper."""
+        reset_seen_flats()  # Reset seen flats before starting
         message = "🏠 *Test Results*\n\n"
         for scraper in self.scrapers:
             try:
