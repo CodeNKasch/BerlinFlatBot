@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional, Dict, Tuple
+from typing import List, Optional, Dict, Tuple, Set
 from dataclasses import dataclass
 import aiohttp
 from bs4 import BeautifulSoup
@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 # Global session for connection pooling
 _global_session = None
+# Global set to track seen flat IDs
+_seen_flat_ids: Set[str] = set()
 
 async def get_session() -> aiohttp.ClientSession:
     global _global_session
@@ -50,6 +52,11 @@ async def close_session():
         await _global_session.close()
         _global_session = None
 
+def reset_seen_flats():
+    """Reset the set of seen flat IDs."""
+    global _seen_flat_ids
+    _seen_flat_ids.clear()
+
 @dataclass
 class FlatDetails:
     id: str
@@ -62,6 +69,14 @@ class FlatDetails:
     def __post_init__(self):
         # Optimize memory usage by converting to tuple for immutable data
         self.details = tuple(sorted(self.details.items()))
+
+    def is_duplicate(self) -> bool:
+        """Check if this flat has been seen before."""
+        global _seen_flat_ids
+        if self.id in _seen_flat_ids:
+            return True
+        _seen_flat_ids.add(self.id)
+        return False
 
 class ScraperError(Exception):
     """Base exception for scraper errors"""
@@ -147,6 +162,10 @@ class BaseScraper:
     def _cleanup(self):
         # Force garbage collection after processing
         gc.collect()
+
+    def _filter_duplicates(self, flats: List[FlatDetails]) -> List[FlatDetails]:
+        """Filter out duplicate flats based on their IDs."""
+        return [flat for flat in flats if not flat.is_duplicate()]
 
 class InBerlinWohnenScraper(BaseScraper):
     async def fetch_flats(self) -> List[FlatDetails]:
@@ -582,6 +601,8 @@ class StadtUndLandScraper(BaseScraper):
                     if flat_details:
                         flats.append(flat_details)
 
+                # Filter out duplicates
+                flats = self._filter_duplicates(flats)
                 self._cleanup()
                 return flats
                 
