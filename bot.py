@@ -64,13 +64,10 @@ class MessageFormatter:
         icon = "🏠" if flat.wbs_required else "✅"
         
         # Create message with icon and title
-        message = f"{icon} *{flat.title}*\n"
-        
-        # Add scraper name as link
         if flat.link:
-            message += f"[{flat.source}]({flat.link})\n"
+            message = f"{icon} [*{flat.title}*]({flat.link})\n"
         else:
-            message += f"{flat.source}\n"
+            message = f"{icon} *{flat.title}*\n"
             
         # Add details
         if flat.details:
@@ -78,6 +75,11 @@ class MessageFormatter:
                 if value and value.strip():  # Only add non-empty values
                     message += f"• {key}: {value}\n"
 
+        # Add scraper name as link
+        if flat.link:
+            message += f"[{flat.source}]({flat.link})\n"
+        else:
+            message += f"{flat.source}\n"
         return message
 
     @staticmethod
