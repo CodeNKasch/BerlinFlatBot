@@ -60,13 +60,16 @@ class Config:
 class MessageFormatter:
     @staticmethod
     def format_flat_message(flat: FlatDetails) -> str:
-        if flat.wbs_required:
-            message = "🏠 (WBS) "
+        # Create a minimal message with just the essential info
+        message = f"*{flat.source}*\n"
+        
+        # Add title with link
+        if flat.link:
+            message += f"[_{flat.title}_]({flat.link})\n"
         else:
-            message = "✅ (No WBS) "
-        message += f"*{flat.title}*\n"
-        message += f"_{flat.source}_\n"
-        # Add key details
+            message += f"_{flat.title}_\n"
+            
+        # Add key details in a clean format
         for key in [
             "Adresse",
             "Zimmeranzahl",
@@ -83,30 +86,24 @@ class MessageFormatter:
             if key in flat.details:
                 message += f"• {key}: {flat.details[key]}\n"
 
-        # Add link
-        if flat.link:
-            message += f"\n[View Details]({flat.link})"
-
         return message
 
     @staticmethod
     def format_help_message() -> str:
         return (
-            "🏠 *Berlin Flat Monitor Help*\n\n"
+            "🏠 *Berlin Flat Monitor*\n\n"
             "I monitor multiple housing websites for new flats and notify you when they appear.\n\n"
-            "*Available Commands:*\n"
-            "• /list - Show the latest 5 flats\n"
-            "• /help - Show this help message\n"
-            "• /status - Show the status of all monitored websites\n\n"
-            "The bot will automatically notify you about:\n"
-            "• New WBS flats 🏠\n"
-            "• New non-WBS flats ✅\n"
-            "• Website availability issues ⚠️\n\n"
-            "Monitored websites:\n"
+            "*Commands:*\n"
+            "• /list - Show latest flats\n"
+            "• /help - Show this help\n"
+            "• /status - Show website status\n"
+            "• /test - Test all scrapers\n\n"
+            "*Monitored websites:*\n"
             "• InBerlinWohnen\n"
             "• Degewo\n"
             "• Gesobau\n"
-            "• Gewobag"
+            "• Gewobag\n"
+            "• Stadt und Land"
         )
 
     @staticmethod
@@ -115,13 +112,13 @@ class MessageFormatter:
         for website, status in website_statuses.items():
             status_lower = status.lower()
             if "not checked yet" in status_lower:
-                message += f"⏳ {website}: {status}\n"
+                message += f"*{website}*\n_⏳ {status}_\n\n"
             elif "unavailable" in status_lower or "error" in status_lower or "timeout" in status_lower:
-                message += f"⚠️ {website}: {status}\n"
+                message += f"*{website}*\n_❌ {status}_\n\n"
             elif "high traffic" in status_lower:
-                message += f"🚧 {website}: {status}\n"
+                message += f"*{website}*\n_🚧 {status}_\n\n"
             else:
-                message += f"✅ {website}: {status}\n"
+                message += f"*{website}*\n_✅ {status}_\n\n"
         return message
 
 class FlatMonitor:
@@ -343,6 +340,7 @@ class FlatMonitor:
 
         reset_seen_flats()  # Reset seen flats before starting
         message = "🏠 *Test Results*\n\n"
+        
         for scraper in self.scrapers:
             try:
                 flats = await scraper.fetch_flats()
@@ -350,13 +348,19 @@ class FlatMonitor:
                     flat = flats[0]  # Get the first flat
                     # Escape special characters in title and ensure proper Markdown formatting
                     safe_title = flat.title.replace('*', '\\*').replace('_', '\\_').replace('[', '\\[').replace(']', '\\]')
-                    message += f"• {scraper.__class__.__name__}: {safe_title}\n"
+                    
+                    # Create a minimal message with just the essential info
+                    message += f"*{scraper.__class__.__name__}*\n"
                     if flat.link:
-                        message += f"  [View Details]({flat.link})\n"
+                        message += f"[_{safe_title}_]({flat.link})\n\n"
+                    else:
+                        message += f"_{safe_title}_\n\n"
                 else:
-                    message += f"• {scraper.__class__.__name__}: No flats found.\n"
+                    message += f"*{scraper.__class__.__name__}*\n"
+                    message += "_No flats found_\n\n"
             except Exception as e:
-                message += f"• {scraper.__class__.__name__}: Error - {str(e)}\n"
+                message += f"*{scraper.__class__.__name__}*\n"
+                message += f"_Error: {str(e)}_\n\n"
 
         try:
             await update.message.reply_text(
