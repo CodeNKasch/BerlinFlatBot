@@ -60,16 +60,19 @@ class Config:
 class MessageFormatter:
     @staticmethod
     def format_flat_message(flat: FlatDetails) -> str:
-        # Create a minimal message with just the essential info
-        message = f"*{flat.source}*\n"
+        # Start with WBS icon
+        icon = "🏠" if flat.wbs_required else "✅"
         
-        # Add title with link
+        # Create message with icon and title
+        message = f"{icon} *{flat.title}*\n"
+        
+        # Add scraper name as link
         if flat.link:
-            message += f"[_{flat.title}_]({flat.link})\n"
+            message += f"[{flat.source}]({flat.link})\n"
         else:
-            message += f"_{flat.title}_\n"
+            message += f"{flat.source}\n"
             
-        # Add all available details
+        # Add details
         if flat.details:
             for key, value in flat.details.items():
                 if value and value.strip():  # Only add non-empty values
