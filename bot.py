@@ -18,7 +18,8 @@ from scrapers import (
     GewobagScraper,
     StadtUndLandScraper,  # Import the new scraper
     WebsiteUnavailableError,
-    HighTrafficError
+    HighTrafficError,
+    reset_seen_flats  # Add this import
 )
 
 # Configure logging
@@ -337,6 +338,9 @@ class FlatMonitor:
 
     async def test_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handles the /test command to return the first result of each scraper."""
+        if str(update.effective_chat.id) != self.chat_id:
+            return
+
         reset_seen_flats()  # Reset seen flats before starting
         message = "🏠 *Test Results*\n\n"
         for scraper in self.scrapers:
@@ -344,20 +348,25 @@ class FlatMonitor:
                 flats = await scraper.fetch_flats()
                 if flats:
                     flat = flats[0]  # Get the first flat
-                    message += f"• {scraper.__class__.__name__}: {flat.title} - [Details]({flat.link})\n"
-
                     # Escape special characters in title and ensure proper Markdown formatting
                     safe_title = flat.title.replace('*', '\\*').replace('_', '\\_').replace('[', '\\[').replace(']', '\\]')
                     message += f"• {scraper.__class__.__name__}: {safe_title}\n"
                     if flat.link:
                         message += f"  [View Details]({flat.link})\n"
-
                 else:
                     message += f"• {scraper.__class__.__name__}: No flats found.\n"
             except Exception as e:
                 message += f"• {scraper.__class__.__name__}: Error - {str(e)}\n"
 
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode="Markdown")
+        try:
+            await update.message.reply_text(
+                text=message,
+                parse_mode="Markdown",
+                disable_web_page_preview=True
+            )
+        except TelegramError as e:
+            logger.error(f"Failed to send test results: {e}")
+            await self.send_error_notification(f"Failed to send test results: {e}")
 
 async def main():
     try:
