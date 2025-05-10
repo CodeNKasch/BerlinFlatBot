@@ -5,6 +5,8 @@ import aiohttp
 from bs4 import BeautifulSoup
 import asyncio
 from datetime import datetime, timedelta
+import re
+from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
 
@@ -254,6 +256,28 @@ class DegewoScraper(BaseScraper):
             # Determine if WBS is required
             wbs_required = "WBS" in title_text.upper()
 
+            # Extract properties (e.g., Zimmer, Wohnfläche, Verfügbarkeit)
+            properties = flat_element.find_all("li", class_="article__properties-item")
+            for prop in properties:
+                svg = prop.find("svg")
+                if svg and "i-room" in svg.get("xlink:href", ""):
+                    details["Zimmeranzahl"] = prop.find("span", class_="text").text.strip()
+                elif svg and "i-squares" in svg.get("xlink:href", ""):
+                    details["Wohnfläche"] = prop.find("span", class_="text").text.strip()
+                elif svg and "i-calendar2" in svg.get("xlink:href", ""):
+                    details["Verfügbarkeit"] = prop.find("span", class_="text").text.strip()
+
+            # Extract price
+            price_element = flat_element.find("div", class_="article__price-tag")
+            if price_element:
+                price_text = price_element.find("span", class_="price")
+                if price_text:
+                    details["Warmmiete"] = price_text.text.strip()
+
+            # Determine if WBS is required
+            wbs_required = "WBS" in title_text.upper()
+
+            # Return the flat details
             return FlatDetails(
                 id=flat_id,
                 title=title_text,
@@ -569,8 +593,9 @@ class StadtUndLandScraper(BaseScraper):
                 logger.warning(f"Missing required fields (id or title) in flat data: {flat_data}")
                 return None
             
-            # Construct the link
-            link = f"https://stadtundland.de/wohnungssuche/{flat_id}" if flat_id else None
+            # Construct the link - using the correct URL format with URL encoded immoNumber
+            encoded_id = quote(flat_id, safe='')  # URL encode the flat ID
+            link = f"https://stadtundland.de/wohnungssuche/{encoded_id}" if flat_id else None
 
             # Extract details
             details_data = flat_data.get("details", {})

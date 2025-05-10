@@ -63,9 +63,8 @@ class MessageFormatter:
             message = "🏠 (WBS) "
         else:
             message = "✅ (No WBS) "
-
-        message += f"*{flat.title}* [{flat.source}]\n"
-
+        message += f"*{flat.title}*\n"
+        message += f"_{flat.source}_\n"
         # Add key details
         for key in [
             "Adresse",
