@@ -91,7 +91,8 @@ class MessageFormatter:
             "• /list [scraper] - Show latest flats (optionally filter by scraper)\n"
             "• /help - Show this help\n"
             "• /status - Show website status\n"
-            "• /test - Test all scrapers\n\n"
+            "• /test - Test all scrapers\n"
+            "• /clear - Clear the flat cache\n\n"
             "*Available scrapers:*\n"
             "• InBerlinWohnen\n"
             "• Degewo\n"
@@ -415,6 +416,18 @@ class FlatMonitor:
             logger.error(f"Failed to send test results: {e}")
             await self.send_error_notification(f"Failed to send test results: {e}")
 
+    async def handle_clear_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if str(update.effective_chat.id) != self.chat_id:
+            return
+
+        try:
+            self.current_flats = []
+            await update.message.reply_text("✅ Flat cache cleared successfully!")
+            logger.info("Flat cache cleared")
+        except TelegramError as e:
+            logger.error(f"Failed to send clear confirmation: {e}")
+            await self.send_error_notification(f"Failed to send clear confirmation: {e}")
+
 async def main():
     try:
         config = Config()
@@ -432,6 +445,7 @@ async def main():
         application.add_handler(CommandHandler("help", monitor.handle_help_command))
         application.add_handler(CommandHandler("status", monitor.handle_status_command))
         application.add_handler(CommandHandler("test", monitor.test_command))
+        application.add_handler(CommandHandler("clear", monitor.handle_clear_command))
 
         monitoring_task = asyncio.create_task(monitor.monitor())
         
