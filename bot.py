@@ -339,10 +339,31 @@ class FlatMonitor:
                 # Find flats that weren't in the previous cache
                 current_ids = {flat.id for flat in self.current_flats}
                 new_entries = [flat for flat in new_flats if flat.id not in current_ids]
-
                 if new_entries:
                     logger.info(f"Found {len(new_entries)} new flats")
-                    await self.send_update(new_entries)
+                
+                # Filter for flats with 2 or more rooms and not requiring WBS
+                def get_room_count(flat):
+                    # Try different possible room field names
+                    room_fields = ['Zimmer', 'Zimmeranzahl', 'rooms']
+                    for field in room_fields:
+                        if field in flat.details:
+                            try:
+                                # Handle different formats: "2", "2 Zimmer", "2.0", etc.
+                                room_str = flat.details[field].lower()
+                                # Extract first number from string
+                                import re
+                                match = re.search(r'\d+(?:[.,]\d+)?', room_str)
+                                if match:
+                                    return float(match.group().replace(',', '.'))
+                            except (ValueError, AttributeError):
+                                continue
+                    return 0  # Return 0 if no valid room count found
+                
+                two_or_more_rooms = [flat for flat in new_entries if (get_room_count(flat) == 0 or get_room_count(flat) >= 2) and not flat.wbs_required]
+                if two_or_more_rooms:
+                    logger.info(f"Found {len(two_or_more_rooms)} new flats with 2 or more rooms")
+                    await self.send_update(two_or_more_rooms)
                 
                 # Update the cache
                 self.current_flats = new_flats
