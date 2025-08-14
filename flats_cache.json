@@ -1,0 +1,229 @@
+{
+  "timestamp": "2025-05-10T15:45:39.077870",
+  "flats": [
+    {
+      "id": "3085166722019977059",
+      "title": "Wundervolle Familienwohnung OHNE WBS",
+      "link": "https://www.gesobau.de/mieten/wohnungssuche/detailseite/buchholzer-strasse-10-01266-00006-1059/",
+      "details": {
+        "Adresse": "Buchholzer Straße 103,\n                        13156 Berlin",
+        "Region": "Niederschönhausen",
+        "Zimmeranzahl": "3 Zi.",
+        "Wohnfläche": "106,11 m²",
+        "Warmmiete": "2.371,88 €"
+      },
+      "wbs_required": true,
+      "source": "Gesobau"
+    },
+    {
+      "id": "5208938552790977021",
+      "title": "Wohnen am Hamburger Platz",
+      "link": "https://www.gesobau.de/wohnungsbau/neubauprojekte/hamburger-platz-pankow-1/",
+      "details": {
+        "Adresse": "Zwischen Am Steinberg und der Pistoriusstraße entstehen 123 neue Wohnungen. Registrieren Sie sich jetzt!",
+        "Region": "Weißensee",
+        "Zimmeranzahl": "1-5 Zi.",
+        "Wohnfläche": "60% WBS",
+        "Warmmiete": "ab 2026"
+      },
+      "wbs_required": false,
+      "source": "Gesobau"
+    },
+    {
+      "id": "-393867852039698837",
+      "title": "Im grünen Niederschönhausen OHNE WBS",
+      "link": "https://www.gesobau.de/mieten/wohnungssuche/detailseite/kirchstrasse-10-01594-00006-1037/",
+      "details": {
+        "Adresse": "Kirchstraße 69 A,\n                        13158 Berlin",
+        "Region": "Rosenthal",
+        "Zimmeranzahl": "2 Zi.",
+        "Wohnfläche": "50,04 m²",
+        "Warmmiete": "1.186,95 €"
+      },
+      "wbs_required": true,
+      "source": "Gesobau"
+    },
+    {
+      "id": "2590006657778185026",
+      "title": "Leben im Seniorenwohnhaus ab 65 Jahren",
+      "link": "https://www.gesobau.de/mieten/wohnungssuche/detailseite/ungarnstrasse-10-00761-00001-0020/",
+      "details": {
+        "Adresse": "Ungarnstraße 83,\n                        13349 Berlin",
+        "Region": "Wedding",
+        "Zimmeranzahl": "1 Zi.",
+        "Wohnfläche": "31,21 m²",
+        "Warmmiete": "433,55 €"
+      },
+      "wbs_required": false,
+      "source": "Gesobau"
+    },
+    {
+      "id": "-7061255915770231989",
+      "title": "Herausragende 2 Zimmer Seniorenwohnung 60+ mit Loggia",
+      "link": "https://www.gesobau.de/mieten/wohnungssuche/detailseite/beate-hahn-strasse-10-03494-00003-1064/",
+      "details": {
+        "Adresse": "Beate-Hahn-Straße 12,\n                        13089 Berlin",
+        "Region": "Heinersdorf",
+        "Zimmeranzahl": "2 Zi.",
+        "Wohnfläche": "60,96 m²",
+        "Warmmiete": "988,19 €"
+      },
+      "wbs_required": false,
+      "source": "Gesobau"
+    },
+    {
+      "id": "-4007468768572640504",
+      "title": "Wohnungen für Senior*innen",
+      "link": "https://www.gesobau.de/wohnungsbau/beate-hahn-strasse-marianne-foerster-strasse/",
+      "details": {
+        "Adresse": "Werden Sie Erstmieter*in einer Seniorenwohnung im verkehrsberuhigten Quartier mit Dorfcharakter!",
+        "Region": "Heinersdorf",
+        "Zimmeranzahl": "1-5 Zi.",
+        "Wohnfläche": "mit/ohne WBS",
+        "Warmmiete": "ab sofort"
+      },
+      "wbs_required": false,
+      "source": "Gesobau"
+    },
+    {
+      "id": "-2103735890024042095",
+      "title": "Wohnen mit der Familie im Königsweg",
+      "link": "https://www.gesobau.de/wohnungsbau/koenigsweg/",
+      "details": {
+        "Adresse": "Insgesamt 46 neue Wohnungen und eine integrierte Kita entstehen in unserem Neubau in Reinickendorf. Jetzt registrieren!",
+        "Region": "Tegel",
+        "Zimmeranzahl": "1 - 4 Zi.",
+        "Wohnfläche": "50 % WBS",
+        "Warmmiete": "ab Herbst 2026"
+      },
+      "wbs_required": false,
+      "source": "Gesobau"
+    },
+    {
+      "id": "6568028914878521033",
+      "title": "Wohnungen exklusiv für Studierende und Azubis",
+      "link": "https://www.gesobau.de/wohnungsbau/quartier-alt-wittenau/",
+      "details": {
+        "Adresse": "Der Mix aus 1-Zimmer-Einheiten und WGs bietet insgesamt 242 Menschen ein Zuhause. Jetzt registrieren!",
+        "Region": "Wittenau",
+        "Zimmeranzahl": "1 Zi / WGs",
+        "Wohnfläche": "ab 380 € / Monat",
+        "Warmmiete": "ab Sommer 2026"
+      },
+      "wbs_required": false,
+      "source": "Gesobau"
+    },
+    {
+      "id": "3085166722019977059",
+      "title": "Wundervolle Familienwohnung OHNE WBS",
+      "link": "https://www.gesobau.de/mieten/wohnungssuche/detailseite/buchholzer-strasse-10-01266-00006-1059/",
+      "details": {
+        "Adresse": "Buchholzer Straße 103,\n                        13156 Berlin",
+        "Region": "Niederschönhausen",
+        "Zimmeranzahl": "3 Zi.",
+        "Wohnfläche": "106,11 m²",
+        "Warmmiete": "2.371,88 €"
+      },
+      "wbs_required": true,
+      "source": "Gesobau"
+    },
+    {
+      "id": "5208938552790977021",
+      "title": "Wohnen am Hamburger Platz",
+      "link": "https://www.gesobau.de/wohnungsbau/neubauprojekte/hamburger-platz-pankow-1/",
+      "details": {
+        "Adresse": "Zwischen Am Steinberg und der Pistoriusstraße entstehen 123 neue Wohnungen. Registrieren Sie sich jetzt!",
+        "Region": "Weißensee",
+        "Zimmeranzahl": "1-5 Zi.",
+        "Wohnfläche": "60% WBS",
+        "Warmmiete": "ab 2026"
+      },
+      "wbs_required": false,
+      "source": "Gesobau"
+    },
+    {
+      "id": "-393867852039698837",
+      "title": "Im grünen Niederschönhausen OHNE WBS",
+      "link": "https://www.gesobau.de/mieten/wohnungssuche/detailseite/kirchstrasse-10-01594-00006-1037/",
+      "details": {
+        "Adresse": "Kirchstraße 69 A,\n                        13158 Berlin",
+        "Region": "Rosenthal",
+        "Zimmeranzahl": "2 Zi.",
+        "Wohnfläche": "50,04 m²",
+        "Warmmiete": "1.186,95 €"
+      },
+      "wbs_required": true,
+      "source": "Gesobau"
+    },
+    {
+      "id": "2590006657778185026",
+      "title": "Leben im Seniorenwohnhaus ab 65 Jahren",
+      "link": "https://www.gesobau.de/mieten/wohnungssuche/detailseite/ungarnstrasse-10-00761-00001-0020/",
+      "details": {
+        "Adresse": "Ungarnstraße 83,\n                        13349 Berlin",
+        "Region": "Wedding",
+        "Zimmeranzahl": "1 Zi.",
+        "Wohnfläche": "31,21 m²",
+        "Warmmiete": "433,55 €"
+      },
+      "wbs_required": false,
+      "source": "Gesobau"
+    },
+    {
+      "id": "-7061255915770231989",
+      "title": "Herausragende 2 Zimmer Seniorenwohnung 60+ mit Loggia",
+      "link": "https://www.gesobau.de/mieten/wohnungssuche/detailseite/beate-hahn-strasse-10-03494-00003-1064/",
+      "details": {
+        "Adresse": "Beate-Hahn-Straße 12,\n                        13089 Berlin",
+        "Region": "Heinersdorf",
+        "Zimmeranzahl": "2 Zi.",
+        "Wohnfläche": "60,96 m²",
+        "Warmmiete": "988,19 €"
+      },
+      "wbs_required": false,
+      "source": "Gesobau"
+    },
+    {
+      "id": "-4007468768572640504",
+      "title": "Wohnungen für Senior*innen",
+      "link": "https://www.gesobau.de/wohnungsbau/beate-hahn-strasse-marianne-foerster-strasse/",
+      "details": {
+        "Adresse": "Werden Sie Erstmieter*in einer Seniorenwohnung im verkehrsberuhigten Quartier mit Dorfcharakter!",
+        "Region": "Heinersdorf",
+        "Zimmeranzahl": "1-5 Zi.",
+        "Wohnfläche": "mit/ohne WBS",
+        "Warmmiete": "ab sofort"
+      },
+      "wbs_required": false,
+      "source": "Gesobau"
+    },
+    {
+      "id": "-2103735890024042095",
+      "title": "Wohnen mit der Familie im Königsweg",
+      "link": "https://www.gesobau.de/wohnungsbau/koenigsweg/",
+      "details": {
+        "Adresse": "Insgesamt 46 neue Wohnungen und eine integrierte Kita entstehen in unserem Neubau in Reinickendorf. Jetzt registrieren!",
+        "Region": "Tegel",
+        "Zimmeranzahl": "1 - 4 Zi.",
+        "Wohnfläche": "50 % WBS",
+        "Warmmiete": "ab Herbst 2026"
+      },
+      "wbs_required": false,
+      "source": "Gesobau"
+    },
+    {
+      "id": "6568028914878521033",
+      "title": "Wohnungen exklusiv für Studierende und Azubis",
+      "link": "https://www.gesobau.de/wohnungsbau/quartier-alt-wittenau/",
+      "details": {
+        "Adresse": "Der Mix aus 1-Zimmer-Einheiten und WGs bietet insgesamt 242 Menschen ein Zuhause. Jetzt registrieren!",
+        "Region": "Wittenau",
+        "Zimmeranzahl": "1 Zi / WGs",
+        "Wohnfläche": "ab 380 € / Monat",
+        "Warmmiete": "ab Sommer 2026"
+      },
+      "wbs_required": false,
+      "source": "Gesobau"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+[Unit]
+Description=Berlin Flat Bot - Rust version
+Documentation=https://github.com/user/BerlinFlatBot
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=flatbot
+Group=flatbot
+WorkingDirectory=/opt/berlin-flat-bot
+ExecStart=/opt/berlin-flat-bot/berlin-flat-bot
+Restart=always
+RestartSec=10
+
+# Environment variables (override with environment files)
+Environment=RUST_LOG=berlin_flat_bot=info,warn
+Environment=RUST_BACKTRACE=1
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/berlin-flat-bot
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+# Resource limits
+LimitNOFILE=1024
+LimitNPROC=512
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=berlin-flat-bot
+
+[Install]
+WantedBy=multi-user.target
