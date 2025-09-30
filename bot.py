@@ -72,8 +72,19 @@ class MessageFormatter:
         # Add details
         if flat.details:
             for key, value in flat.details.items():
-                if value and value.strip():  # Only add non-empty values
-                    message += f"• {key}: {value}\n"
+                if value:  # Check if value exists
+                    # Convert non-string values to strings and handle them properly
+                    if isinstance(value, str):
+                        if value.strip():  # Only add non-empty strings
+                            message += f"• {key}: {value}\n"
+                    elif isinstance(value, (list, dict)):
+                        # Skip complex data structures that don't display well
+                        continue
+                    else:
+                        # Convert other types to strings
+                        str_value = str(value).strip()
+                        if str_value:
+                            message += f"• {key}: {str_value}\n"
 
         # Add scraper name as link
         if flat.link:
