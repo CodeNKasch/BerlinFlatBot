@@ -391,7 +391,14 @@ class InBerlinWohnenScraper(BaseScraper):
 
             # Extract company information
             if "company" in apartment_data:
-                details["Anbieter"] = apartment_data["company"]
+                company_data = apartment_data["company"]
+                if isinstance(company_data, list) and len(company_data) > 0:
+                    # Extract company name from the company data structure
+                    company_info = company_data[0]
+                    if isinstance(company_info, dict) and "name" in company_info:
+                        details["Anbieter"] = company_info["name"].strip()
+                elif isinstance(company_data, str):
+                    details["Anbieter"] = company_data
 
             # Add object ID if available
             if object_id:
