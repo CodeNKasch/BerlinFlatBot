@@ -327,15 +327,45 @@ class FlatMonitor:
                     )
                     return
 
+            # Apply WBS and room filters (same as monitoring loop)
+            def get_room_count(flat):
+                room_fields = ["Zimmer", "Zimmeranzahl", "rooms"]
+                for field in room_fields:
+                    if field in flat.details:
+                        try:
+                            room_str = flat.details[field].lower()
+                            import re
+                            match = re.search(r"\d+(?:[.,]\d+)?", room_str)
+                            if match:
+                                return float(match.group().replace(",", "."))
+                        except (ValueError, AttributeError):
+                            continue
+                return 0
+
+            # Filter for 2+ rooms and no WBS requirement
+            filtered_flats = [
+                flat
+                for flat in flats
+                if (get_room_count(flat) == 0 or get_room_count(flat) >= 2)
+                and not flat.wbs_required
+            ]
+
             total_flats = len(flats)
-            logger.info(f"Total flats found: {total_flats}")
-            flats = flats[:5]  # Limit to 5 flats
+            filtered_count = len(filtered_flats)
+            logger.info(f"Total flats found: {total_flats}, after filters: {filtered_count}")
+            flats = filtered_flats[:5]  # Limit to 5 flats
 
             # Add a header message
-            header = f"Found {total_flats} flats"
+            if not flats:
+                header = f"Found {total_flats} flats total, but none match filters (2+ rooms, no WBS)"
+                if scraper_name:
+                    header = f"Found {total_flats} flats from {scraper_name}, but none match filters (2+ rooms, no WBS)"
+                await update.message.reply_text(header)
+                return
+
+            header = f"Found {total_flats} flats ({filtered_count} after filters, showing {len(flats)})"
             if scraper_name:
-                header += f" from {scraper_name}"
-            header += f" (showing {len(flats)}):"
+                header = f"Found {total_flats} flats from {scraper_name} ({filtered_count} after filters, showing {len(flats)})"
             await update.message.reply_text(header)
 
             for flat in flats:
