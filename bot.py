@@ -140,10 +140,10 @@ class FlatMonitor:
         # Initialize scrapers and their status
         self.scrapers = [
             InBerlinWohnenScraper("https://inberlinwohnen.de/wohnungsfinder/"),
-            DegewoScraper("https://www.degewo.de/immosuche"),
-            GesobauScraper("https://www.gesobau.de/mieten/wohnungssuche/"),
-            GewobagScraper("https://www.gewobag.de/fuer-mieter-und-mietinteressenten/mietangebote/?objekttyp%5B%5D=wohnung&gesamtmiete_von=&gesamtmiete_bis=&gesamtflaeche_von=&gesamtflaeche_bis=&zimmer_von=&zimmer_bis=&sort-by="),
-            StadtUndLandScraper("https://stadtundland.de/wohnungssuche")
+            # DegewoScraper("https://www.degewo.de/immosuche"),
+            # GesobauScraper("https://www.gesobau.de/mieten/wohnungssuche/"),
+            # GewobagScraper("https://www.gewobag.de/fuer-mieter-und-mietinteressenten/mietangebote/?objekttyp%5B%5D=wohnung&gesamtmiete_von=&gesamtmiete_bis=&gesamtflaeche_von=&gesamtflaeche_bis=&zimmer_von=&zimmer_bis=&sort-by="),
+            # StadtUndLandScraper("https://stadtundland.de/wohnungssuche")
         ]
         # Initialize status for all scrapers
         self.website_statuses = {scraper.__class__.__name__: "Not checked yet" for scraper in self.scrapers}
@@ -372,10 +372,10 @@ class FlatMonitor:
                                 continue
                     return 0  # Return 0 if no valid room count found
                 
-                two_or_more_rooms = [flat for flat in new_entries if (get_room_count(flat) == 0 or get_room_count(flat) >= 2) and not flat.wbs_required]
-                if two_or_more_rooms:
-                    logger.info(f"Found {len(two_or_more_rooms)} new flats with 2 or more rooms")
-                    await self.send_update(two_or_more_rooms)
+                filtered_flats = [flat for flat in new_entries if (get_room_count(flat) == 0 or get_room_count(flat) > 1) and not flat.wbs_required]
+                if filtered_flats:
+                    logger.info(f"Found {len(filtered_flats)} new flats with more than 1 room")
+                    await self.send_update(filtered_flats)
                 
                 # Update the cache
                 self.current_flats = new_flats
