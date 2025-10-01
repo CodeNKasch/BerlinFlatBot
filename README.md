@@ -79,9 +79,23 @@ python bot.py
 
 ## Dependencies
 
-- python-telegram-bot==20.7
-- aiohttp==3.9.3
-- beautifulsoup4==4.12.3
+- python-telegram-bot>=20.7,<23.0
+- aiohttp>=3.9.3,<4.0
+- beautifulsoup4>=4.12.3,<5.0
+
+## Troubleshooting
+
+### `'Updater' object has no attribute '_Updater__polling_cleanup_cb'`
+
+If you encounter this error, it's likely due to a version mismatch. Try:
+
+```bash
+pip install --upgrade python-telegram-bot
+# or force reinstall
+pip install --force-reinstall python-telegram-bot==20.7
+```
+
+Make sure you're using Python 3.7+ and have a clean virtual environment.
 
 ## Error Handling
 
