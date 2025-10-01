@@ -57,6 +57,58 @@ def reset_seen_flats():
     global _seen_flat_ids
     _seen_flat_ids.clear()
 
+def check_wbs_required(text: str) -> bool:
+    """
+    Check if WBS is required based on text content.
+    Returns True only if WBS is explicitly required.
+    Returns False if WBS is not mentioned or explicitly not required.
+    """
+    if not text:
+        return False
+
+    text_lower = text.lower()
+
+    # Patterns that indicate WBS is NOT required (check these first)
+    not_required_patterns = [
+        "kein wbs",
+        "ohne wbs",
+        "no wbs",
+        "wbs nicht erforderlich",
+        "wbs nicht notwendig",
+        "wbs nicht nötig",
+    ]
+
+    for pattern in not_required_patterns:
+        if pattern in text_lower:
+            return False
+
+    # Patterns that indicate WBS IS required
+    required_patterns = [
+        "wbs erforderlich",
+        "wbs notwendig",
+        "wbs nötig",
+        "wbs benötigt",
+        "wbs voraussetzung",
+        "mit wbs",
+        "wbs required",
+    ]
+
+    for pattern in required_patterns:
+        if pattern in text_lower:
+            return True
+
+    # If just "wbs" appears alone without context, be conservative and flag it
+    # This catches cases like "WBS: ja" or standalone "WBS"
+    if re.search(r'\bwbs\b', text_lower):
+        # Check if it's followed by negation indicators
+        if re.search(r'\bwbs\b[:\s-]*(nein|no|nicht)', text_lower):
+            return False
+        # If it's "WBS: ja" or similar, flag as required
+        if re.search(r'\bwbs\b[:\s-]*(ja|yes|erforderlich)', text_lower):
+            return True
+
+    return False
+
 @dataclass
 class FlatDetails:
     id: str
@@ -405,15 +457,13 @@ class InBerlinWohnenScraper(BaseScraper):
                 details["Objekt-ID"] = object_id
 
             # Check for WBS requirement
-            wbs_required = False
             wbs_sources = [title]
             if "wbs" in apartment_data:
                 wbs_sources.append(str(apartment_data["wbs"]))
+            # Also check all detail values
+            wbs_sources.extend(str(v) for v in details.values() if v)
 
-            for source in wbs_sources:
-                if source and ("wbs" in source.lower() or "erforderlich" in source.lower()):
-                    wbs_required = True
-                    break
+            wbs_required = any(check_wbs_required(source) for source in wbs_sources if source)
 
             return FlatDetails(
                 id=flat_id,
@@ -563,13 +613,12 @@ class InBerlinWohnenScraper(BaseScraper):
                 if price_match:
                     details["Miete"] = f"{price_match.group(1)} €"
 
-            # Check for WBS requirement
-            wbs_required = False
-            wbs_sources = [details.get("WBS", ""), title_text, flat_element.get_text()]
-            for source in wbs_sources:
-                if source and ("erforderlich" in source.lower() or "wbs" in source.lower()):
-                    wbs_required = True
-                    break
+            # Check for WBS requirement - check title, details, and full element text
+            wbs_sources = [title_text, flat_element.get_text()]
+            # Also check all detail values
+            wbs_sources.extend(str(v) for v in details.values() if v)
+
+            wbs_required = any(check_wbs_required(source) for source in wbs_sources if source)
 
             # Only return valid flats
             if flat_id and title_text and title_text != "No title":
@@ -665,8 +714,9 @@ class DegewoScraper(BaseScraper):
                 if price_text:
                     details["Warmmiete"] = price_text.text.strip()
 
-            # Determine if WBS is required
-            wbs_required = "WBS" in title_text.upper()
+            # Determine if WBS is required - check title and all details
+            wbs_sources = [title_text] + [str(v) for v in details.values() if v]
+            wbs_required = any(check_wbs_required(source) for source in wbs_sources)
 
             # Extract properties (e.g., Zimmer, Wohnfläche, Verfügbarkeit)
             properties = flat_element.find_all("li", class_="article__properties-item")
@@ -686,8 +736,9 @@ class DegewoScraper(BaseScraper):
                 if price_text:
                     details["Warmmiete"] = price_text.text.strip()
 
-            # Determine if WBS is required
-            wbs_required = "WBS" in title_text.upper()
+            # Determine if WBS is required - check title and all details
+            wbs_sources = [title_text] + [str(v) for v in details.values() if v]
+            wbs_required = any(check_wbs_required(source) for source in wbs_sources)
 
             # Return the flat details
             return FlatDetails(
@@ -776,8 +827,9 @@ class GesobauScraper(BaseScraper):
                     details["Wohnfläche"] = info_spans[1].text.strip()
                     details["Warmmiete"] = info_spans[2].text.strip()
 
-            # Check for WBS requirement
-            wbs_required = "WBS" in title_text.upper()
+            # Check for WBS requirement - check title and all details
+            wbs_sources = [title_text] + [str(v) for v in details.values() if v]
+            wbs_required = any(check_wbs_required(source) for source in wbs_sources)
 
             return FlatDetails(
                 id=flat_id,
@@ -880,8 +932,9 @@ class GewobagScraper(BaseScraper):
                     if characteristics:
                         details["Besondere Eigenschaften"] = ", ".join(characteristics)
 
-            # Check for WBS requirement
-            wbs_required = "WBS" in title_text.upper()
+            # Check for WBS requirement - check title and all details
+            wbs_sources = [title_text] + [str(v) for v in details.values() if v]
+            wbs_required = any(check_wbs_required(source) for source in wbs_sources)
 
             return FlatDetails(
                 id=flat_id,
@@ -1007,7 +1060,8 @@ class StadtUndLandScraper(BaseScraper):
             if special_features:
                 details["Besondere Eigenschaften"] = ", ".join(special_features)
 
-            wbs_required = "WBS" in title.upper() or any("WBS" in str(v).upper() for v in details.values())
+            wbs_sources = [title] + [str(v) for v in details.values() if v]
+            wbs_required = any(check_wbs_required(source) for source in wbs_sources)
 
             return FlatDetails(
                 id=flat_id,
