@@ -76,6 +76,8 @@ def check_wbs_required(text: str) -> bool:
         "wbs nicht erforderlich",
         "wbs nicht notwendig",
         "wbs nicht nötig",
+        "ohne wohnberechtigungsschein",
+        "kein wohnberechtigungsschein",
     ]
 
     for pattern in not_required_patterns:
