@@ -89,6 +89,8 @@ def check_wbs_required(text: str) -> bool:
         "wbs nötig",
         "wbs benötigt",
         "wbs voraussetzung",
+        "wbs vermietung",
+        "wbs-vermietung",
         "mit wbs",
         "wbs required",
     ]
