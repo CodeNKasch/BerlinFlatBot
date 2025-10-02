@@ -60,15 +60,21 @@ def reset_seen_flats():
 def check_wbs_required(text: str) -> bool:
     """
     Check if WBS is required based on text content.
-    Returns True only if WBS is explicitly required.
-    Returns False if WBS is not mentioned or explicitly not required.
+    Logic:
+    - If WBS not mentioned at all -> False (no WBS required)
+    - If WBS mentioned AND explicitly negated (kein WBS, ohne WBS) -> False
+    - If WBS mentioned but NOT negated -> True (WBS required)
     """
     if not text:
         return False
 
     text_lower = text.lower()
 
-    # Patterns that indicate WBS is NOT required (check these first)
+    # Check if WBS is mentioned at all
+    if not re.search(r'\bwbs\b|wohnberechtigungsschein', text_lower):
+        return False  # No WBS mentioned = no WBS required
+
+    # Patterns that indicate WBS is NOT required
     not_required_patterns = [
         "kein wbs",
         "ohne wbs",
@@ -84,34 +90,12 @@ def check_wbs_required(text: str) -> bool:
         if pattern in text_lower:
             return False
 
-    # Patterns that indicate WBS IS required
-    required_patterns = [
-        "wbs erforderlich",
-        "wbs notwendig",
-        "wbs nötig",
-        "wbs benötigt",
-        "wbs voraussetzung",
-        "wbs vermietung",
-        "wbs-vermietung",
-        "mit wbs",
-        "wbs required",
-    ]
+    # Check if it's followed by negation indicators
+    if re.search(r'\bwbs\b[:\s-]*(nein|no|nicht)', text_lower):
+        return False
 
-    for pattern in required_patterns:
-        if pattern in text_lower:
-            return True
-
-    # If just "wbs" appears alone without context, be conservative and flag it
-    # This catches cases like "WBS: ja" or standalone "WBS"
-    if re.search(r'\bwbs\b', text_lower):
-        # Check if it's followed by negation indicators
-        if re.search(r'\bwbs\b[:\s-]*(nein|no|nicht)', text_lower):
-            return False
-        # If it's "WBS: ja" or similar, flag as required
-        if re.search(r'\bwbs\b[:\s-]*(ja|yes|erforderlich)', text_lower):
-            return True
-
-    return False
+    # WBS is mentioned but not negated -> assume required
+    return True
 
 @dataclass
 class FlatDetails:

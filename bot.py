@@ -149,6 +149,7 @@ class FlatMonitor:
         self.chat_id = config.chat_id
         self.private_chat_id = config.private_chat_id
         self.current_flats: List[FlatDetails] = []
+        self.buffered_flats: List[FlatDetails] = []  # Buffer for flats outside allowed hours
         self.application: Optional[Application] = None
         self.formatter = MessageFormatter()
 
@@ -269,6 +270,13 @@ class FlatMonitor:
         if not new_flats:
             return
 
+        # Check if current time is within allowed hours (8 AM - 8 PM)
+        current_hour = datetime.now().hour
+        if not (8 <= current_hour < 20):
+            logger.info(f"Outside allowed hours ({current_hour}:00) - buffering {len(new_flats)} flats for later")
+            self.buffered_flats.extend(new_flats)
+            return
+
         try:
             for flat in new_flats:
                 message = self.formatter.format_flat_message(flat)
@@ -280,6 +288,27 @@ class FlatMonitor:
                 )
         except TelegramError as e:
             logger.error(f"Failed to send update: {e}")
+
+    async def send_buffered_flats(self):
+        """Send any buffered flats if we're in allowed hours"""
+        if not self.buffered_flats:
+            return
+
+        current_hour = datetime.now().hour
+        if 8 <= current_hour < 20:
+            logger.info(f"Sending {len(self.buffered_flats)} buffered flats")
+            try:
+                for flat in self.buffered_flats:
+                    message = self.formatter.format_flat_message(flat)
+                    await self.bot.send_message(
+                        chat_id=self.chat_id,
+                        text=message,
+                        parse_mode="Markdown",
+                        disable_web_page_preview=True,
+                    )
+                self.buffered_flats.clear()
+            except TelegramError as e:
+                logger.error(f"Failed to send buffered flats: {e}")
 
     async def handle_list_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -408,6 +437,9 @@ class FlatMonitor:
 
         while True:
             try:
+                # Check and send any buffered flats if we're in allowed hours
+                await self.send_buffered_flats()
+
                 logger.info("Checking for new flats...")
                 new_flats = await self.fetch_all_flats()
 

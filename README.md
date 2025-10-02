@@ -11,6 +11,8 @@ A Telegram bot that monitors multiple Berlin housing websites for new apartment 
   - Gewobag
   - Stadt und Land
 - Real-time notifications via Telegram
+- **Smart filtering**: Only notifies about flats with 2+ rooms and no WBS requirement
+- **Quiet hours**: Notifications only sent between 8 AM - 8 PM (flats found outside these hours are buffered and sent at 8 AM)
 - Detailed apartment information including:
   - Title and link
   - WBS status
@@ -66,10 +68,11 @@ python bot.py
 ```
 
 2. Available commands in Telegram:
-- `/list` - Show all current flats
+- `/list [scraper]` - Show current flats (filtered by 2+ rooms, no WBS), optionally from specific scraper
 - `/help` - Show help message
 - `/status` - Show website status
 - `/test` - Test all scrapers
+- `/clear` - Clear the flat cache
 
 ## System Requirements
 
