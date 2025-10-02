@@ -1,15 +1,16 @@
-import logging
-from typing import List, Optional, Dict, Tuple, Set
-from dataclasses import dataclass
-import aiohttp
-from bs4 import BeautifulSoup
 import asyncio
-from datetime import datetime, timedelta
-import re
-from urllib.parse import quote
 import gc
+import logging
+import re
 import ssl
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Set, Tuple
+from urllib.parse import quote
+
+import aiohttp
 import certifi
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
@@ -18,12 +19,13 @@ _global_session = None
 # Global set to track seen flat IDs
 _seen_flat_ids: Set[str] = set()
 
+
 async def get_session() -> aiohttp.ClientSession:
     global _global_session
     if _global_session is None or _global_session.closed:
         # Create a custom SSL context that uses system certificates
         ssl_context = ssl.create_default_context(cafile=certifi.where())
-        
+
         # Configure TCP connector with optimized settings
         connector = aiohttp.TCPConnector(
             ssl=ssl_context,
@@ -31,20 +33,21 @@ async def get_session() -> aiohttp.ClientSession:
             ttl_dns_cache=300,  # Cache DNS results for 5 minutes
             use_dns_cache=True,
             force_close=False,  # Keep connections alive
-            enable_cleanup_closed=True
+            enable_cleanup_closed=True,
         )
-        
+
         # Create session with optimized settings
         _global_session = aiohttp.ClientSession(
             connector=connector,
             timeout=aiohttp.ClientTimeout(total=30),
             headers={
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.4 Safari/605.1.15',
-                'Accept': '*/*',
-                'Accept-Language': 'en-GB,en;q=0.9',
-            }
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.4 Safari/605.1.15",
+                "Accept": "*/*",
+                "Accept-Language": "en-GB,en;q=0.9",
+            },
         )
     return _global_session
+
 
 async def close_session():
     global _global_session
@@ -52,10 +55,12 @@ async def close_session():
         await _global_session.close()
         _global_session = None
 
+
 def reset_seen_flats():
     """Reset the set of seen flat IDs."""
     global _seen_flat_ids
     _seen_flat_ids.clear()
+
 
 def check_wbs_required(text: str) -> bool:
     """
@@ -71,7 +76,7 @@ def check_wbs_required(text: str) -> bool:
     text_lower = text.lower()
 
     # Check if WBS is mentioned at all
-    if not re.search(r'\bwbs\b|wohnberechtigungsschein', text_lower):
+    if not re.search(r"\bwbs\b|wohnberechtigungsschein", text_lower):
         return False  # No WBS mentioned = no WBS required
 
     # Patterns that indicate WBS is NOT required
@@ -91,11 +96,12 @@ def check_wbs_required(text: str) -> bool:
             return False
 
     # Check if it's followed by negation indicators
-    if re.search(r'\bwbs\b[:\s-]*(nein|no|nicht)', text_lower):
+    if re.search(r"\bwbs\b[:\s-]*(nein|no|nicht)", text_lower):
         return False
 
     # WBS is mentioned but not negated -> assume required
     return True
+
 
 @dataclass
 class FlatDetails:
@@ -119,17 +125,24 @@ class FlatDetails:
         _seen_flat_ids.add(self.id)
         return False
 
+
 class ScraperError(Exception):
     """Base exception for scraper errors"""
+
     pass
+
 
 class WebsiteUnavailableError(ScraperError):
     """Raised when a website is temporarily unavailable"""
+
     pass
+
 
 class HighTrafficError(ScraperError):
     """Raised when a website is experiencing high traffic"""
+
     pass
+
 
 class BaseScraper:
     def __init__(self, url: str):
@@ -139,7 +152,9 @@ class BaseScraper:
         self.backoff_time: int = 60
         self.max_backoff_time: int = 3600
         self.max_retries: int = 3
-        self._parser = 'html.parser'  # Use html.parser instead of lxml for lower memory usage
+        self._parser = (
+            "html.parser"  # Use html.parser instead of lxml for lower memory usage
+        )
 
     async def fetch_flats(self) -> List[FlatDetails]:
         """Base method to fetch flats from a website."""
@@ -149,7 +164,7 @@ class BaseScraper:
         """Check if we should back off from making requests."""
         if self.last_error_time is None:
             return False
-        
+
         time_since_error = datetime.now() - self.last_error_time
         if time_since_error < timedelta(seconds=self.backoff_time):
             return True
@@ -167,9 +182,13 @@ class BaseScraper:
         self.backoff_time = 60
         self.last_error_time = None
 
-    async def _make_request(self, session: aiohttp.ClientSession, method: str = 'GET', **kwargs) -> Tuple[bool, str]:
+    async def _make_request(
+        self, session: aiohttp.ClientSession, method: str = "GET", **kwargs
+    ) -> Tuple[bool, str]:
         if self._check_backoff():
-            raise WebsiteUnavailableError(f"Website is in backoff period. Retry in {self.backoff_time} seconds.")
+            raise WebsiteUnavailableError(
+                f"Website is in backoff period. Retry in {self.backoff_time} seconds."
+            )
 
         for attempt in range(self.max_retries):
             try:
@@ -179,20 +198,24 @@ class BaseScraper:
                         return True, await response.text()
                     elif response.status == 503 or response.status == 429:
                         self._update_backoff()
-                        raise HighTrafficError(f"Website experiencing high traffic. Status: {response.status}")
+                        raise HighTrafficError(
+                            f"Website experiencing high traffic. Status: {response.status}"
+                        )
                     else:
                         self._update_backoff()
-                        raise WebsiteUnavailableError(f"Website unavailable. Status: {response.status}")
+                        raise WebsiteUnavailableError(
+                            f"Website unavailable. Status: {response.status}"
+                        )
             except asyncio.TimeoutError:
                 if attempt == self.max_retries - 1:
                     self._update_backoff()
                     raise WebsiteUnavailableError("Request timed out")
-                await asyncio.sleep(2 ** attempt)
+                await asyncio.sleep(2**attempt)
             except aiohttp.ClientError as e:
                 if attempt == self.max_retries - 1:
                     self._update_backoff()
                     raise WebsiteUnavailableError(f"Connection error: {str(e)}")
-                await asyncio.sleep(2 ** attempt)
+                await asyncio.sleep(2**attempt)
 
         return False, ""
 
@@ -208,23 +231,24 @@ class BaseScraper:
         """Filter out duplicate flats based on their IDs."""
         return [flat for flat in flats if not flat.is_duplicate()]
 
+
 class InBerlinWohnenScraper(BaseScraper):
     def __init__(self, url: str):
         super().__init__(url)
         # Use custom headers that mimic a real browser more closely
         self.custom_headers = {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-            'Accept-Language': 'de-DE,de;q=0.9,en;q=0.8',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'DNT': '1',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-User': '?1',
-            'Cache-Control': 'max-age=0',
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
+            "Accept-Encoding": "gzip, deflate, br",
+            "DNT": "1",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+            "Cache-Control": "max-age=0",
         }
 
     async def fetch_flats(self) -> List[FlatDetails]:
@@ -233,9 +257,13 @@ class InBerlinWohnenScraper(BaseScraper):
             session = await get_session()
 
             # Get the main page to establish session and get apartment data
-            async with session.get(self.url, headers=self.custom_headers, timeout=30) as response:
+            async with session.get(
+                self.url, headers=self.custom_headers, timeout=30
+            ) as response:
                 if response.status != 200:
-                    raise WebsiteUnavailableError(f"Website unavailable. Status: {response.status}")
+                    raise WebsiteUnavailableError(
+                        f"Website unavailable. Status: {response.status}"
+                    )
 
                 html = await response.text()
 
@@ -243,7 +271,10 @@ class InBerlinWohnenScraper(BaseScraper):
             flats = []
 
             # Check for high traffic message
-            if soup.find("div", class_="error-message") and "high traffic" in soup.text.lower():
+            if (
+                soup.find("div", class_="error-message")
+                and "high traffic" in soup.text.lower()
+            ):
                 raise HighTrafficError("Website experiencing high traffic")
 
             # Look for Livewire component data embedded in the HTML
@@ -255,6 +286,7 @@ class InBerlinWohnenScraper(BaseScraper):
             for element in livewire_elements:
                 try:
                     import json
+
                     livewire_data = json.loads(element.get("wire:snapshot"))
                     break
                 except (json.JSONDecodeError, TypeError):
@@ -264,6 +296,12 @@ class InBerlinWohnenScraper(BaseScraper):
             apartment_data = self._extract_livewire_apartments(soup)
             if apartment_data:
                 logger.info(f"Found {len(apartment_data)} apartments in Livewire data")
+                # Log IDs to detect duplicates at source
+                apt_ids = [apt.get("id", "no-id") for apt in apartment_data]
+                if len(apt_ids) != len(set(apt_ids)):
+                    logger.warning(
+                        f"Duplicate apartment IDs found in Livewire data: {apt_ids}"
+                    )
 
                 for apt_data in apartment_data:
                     flat_details = self._parse_livewire_apartment(apt_data)
@@ -272,7 +310,9 @@ class InBerlinWohnenScraper(BaseScraper):
 
             # If no Livewire data found, fall back to traditional scraping
             if not flats:
-                logger.info("No Livewire data found, falling back to traditional scraping")
+                logger.info(
+                    "No Livewire data found, falling back to traditional scraping"
+                )
                 flat_elements = self._find_apartment_elements(soup)
 
                 for flat in flat_elements:
@@ -280,7 +320,11 @@ class InBerlinWohnenScraper(BaseScraper):
                     if flat_details:
                         flats.append(flat_details)
 
-            logger.info(f"Successfully extracted {len(flats)} flats from InBerlinWohnen")
+            # Filter out duplicates within this fetch
+            flats = self._filter_duplicates(flats)
+            logger.info(
+                f"Successfully extracted {len(flats)} flats from InBerlinWohnen"
+            )
             return flats
 
         except (WebsiteUnavailableError, HighTrafficError) as e:
@@ -300,22 +344,40 @@ class InBerlinWohnenScraper(BaseScraper):
         for elem in potential_containers:
             text = elem.get_text()
             # Look for patterns like "2 Zimmer" and "65 m²"
-            if ('zimmer' in text.lower() or 'raum' in text.lower()) and 'm²' in text:
+            if ("zimmer" in text.lower() or "raum" in text.lower()) and "m²" in text:
                 # Make sure it's not just a parent containing multiple apartments
-                if len(elem.find_all(string=lambda x: x and 'zimmer' in x.lower())) <= 2:  # Not a container with many apartments
+                if (
+                    len(elem.find_all(string=lambda x: x and "zimmer" in x.lower()))
+                    <= 2
+                ):  # Not a container with many apartments
                     flat_elements.append(elem)
 
         # Strategy 2: Look for structured apartment data
         if not flat_elements:
             # Look for cards or article elements
-            candidates = soup.find_all(['article', 'div'], class_=lambda x: x and any(
-                keyword in str(x).lower() for keyword in ['apartment', 'flat', 'card', 'item', 'listing', 'teaser']
-            ))
+            candidates = soup.find_all(
+                ["article", "div"],
+                class_=lambda x: x
+                and any(
+                    keyword in str(x).lower()
+                    for keyword in [
+                        "apartment",
+                        "flat",
+                        "card",
+                        "item",
+                        "listing",
+                        "teaser",
+                    ]
+                ),
+            )
 
             for candidate in candidates:
                 # Check if it contains apartment-like information
                 text = candidate.get_text()
-                if any(keyword in text.lower() for keyword in ['zimmer', 'miete', 'm²', 'euro']):
+                if any(
+                    keyword in text.lower()
+                    for keyword in ["zimmer", "miete", "m²", "euro"]
+                ):
                     flat_elements.append(candidate)
 
         # Strategy 3: Look for any elements with links to apartment details
@@ -331,7 +393,9 @@ class InBerlinWohnenScraper(BaseScraper):
                         if parent and parent not in flat_elements:
                             flat_elements.append(parent)
 
-        return flat_elements[:20]  # Limit to first 20 to avoid processing too many false positives
+        return flat_elements[
+            :20
+        ]  # Limit to first 20 to avoid processing too many false positives
 
     def _extract_livewire_apartments(self, soup):
         """Extract apartment data from Livewire components embedded in the HTML."""
@@ -344,13 +408,16 @@ class InBerlinWohnenScraper(BaseScraper):
         for element in livewire_elements:
             try:
                 import json
+
                 livewire_data = json.loads(element.get("wire:snapshot"))
 
                 # Look for apartment item data (main apartment info)
                 if "data" in livewire_data and "item" in livewire_data["data"]:
                     item_data = livewire_data["data"]["item"]
                     if isinstance(item_data, list) and len(item_data) > 0:
-                        apartment = item_data[0]  # Get the first (and usually only) item
+                        apartment = item_data[
+                            0
+                        ]  # Get the first (and usually only) item
                         apartments.append(apartment)
 
                 # Look for apartment details data (address info)
@@ -419,11 +486,17 @@ class InBerlinWohnenScraper(BaseScraper):
             if "rooms" in apartment_data:
                 details["Zimmer"] = str(apartment_data["rooms"]).replace(".", ",")
             if "area" in apartment_data:
-                details["Wohnfläche"] = f"{str(apartment_data['area']).replace('.', ',')} m²"
+                details["Wohnfläche"] = (
+                    f"{str(apartment_data['area']).replace('.', ',')} m²"
+                )
             if "rentNet" in apartment_data:
-                details["Kaltmiete"] = f"{str(apartment_data['rentNet']).replace('.', ',')} €"
+                details["Kaltmiete"] = (
+                    f"{str(apartment_data['rentNet']).replace('.', ',')} €"
+                )
             if "rentTotal" in apartment_data:
-                details["Warmmiete"] = f"{str(apartment_data['rentTotal']).replace('.', ',')} €"
+                details["Warmmiete"] = (
+                    f"{str(apartment_data['rentTotal']).replace('.', ',')} €"
+                )
 
             # Extract availability
             if "availableFrom" in apartment_data:
@@ -451,7 +524,9 @@ class InBerlinWohnenScraper(BaseScraper):
             # Also check all detail values
             wbs_sources.extend(str(v) for v in details.values() if v)
 
-            wbs_required = any(check_wbs_required(source) for source in wbs_sources if source)
+            wbs_required = any(
+                check_wbs_required(source) for source in wbs_sources if source
+            )
 
             return FlatDetails(
                 id=flat_id,
@@ -459,7 +534,7 @@ class InBerlinWohnenScraper(BaseScraper):
                 link=deeplink,
                 details=details,
                 wbs_required=wbs_required,
-                source="InBerlinWohnen"
+                source="InBerlinWohnen",
             )
 
         except Exception as e:
@@ -480,9 +555,19 @@ class InBerlinWohnenScraper(BaseScraper):
 
             # Try multiple selectors for title
             title = None
-            title_selectors = ["h2", "h3", "h4", ".title", ".headline", ".apartment-title"]
+            title_selectors = [
+                "h2",
+                "h3",
+                "h4",
+                ".title",
+                ".headline",
+                ".apartment-title",
+            ]
             for selector in title_selectors:
-                title = flat_element.find(selector.replace(".", ""), class_=selector.replace(".", "") if "." in selector else None)
+                title = flat_element.find(
+                    selector.replace(".", ""),
+                    class_=selector.replace(".", "") if "." in selector else None,
+                )
                 if not title and "." in selector:
                     title = flat_element.find(class_=selector.replace(".", ""))
                 if title:
@@ -497,7 +582,7 @@ class InBerlinWohnenScraper(BaseScraper):
                 ("a", "btn"),
                 ("a", "button"),
                 ("a", "link"),
-                ("a", None)  # Any link
+                ("a", None),  # Any link
             ]
 
             for tag, class_name in link_selectors:
@@ -537,12 +622,14 @@ class InBerlinWohnenScraper(BaseScraper):
                     (".property-details", "div"),
                     (".info", "div"),
                     ("dl", None),  # Definition lists
-                    (".data-table", "div")
+                    (".data-table", "div"),
                 ]
 
                 for selector, tag in detail_selectors:
                     if tag:
-                        detail_container = flat_element.find(tag, class_=selector.replace(".", ""))
+                        detail_container = flat_element.find(
+                            tag, class_=selector.replace(".", "")
+                        )
                     else:
                         detail_container = flat_element.find(selector.replace(".", ""))
 
@@ -551,7 +638,11 @@ class InBerlinWohnenScraper(BaseScraper):
                         dt_elements = detail_container.find_all("dt")
                         dd_elements = detail_container.find_all("dd")
 
-                        if dt_elements and dd_elements and len(dt_elements) == len(dd_elements):
+                        if (
+                            dt_elements
+                            and dd_elements
+                            and len(dt_elements) == len(dd_elements)
+                        ):
                             for dt, dd in zip(dt_elements, dd_elements):
                                 key = dt.text.strip().rstrip(":")
                                 value = dd.text.strip()
@@ -564,7 +655,7 @@ class InBerlinWohnenScraper(BaseScraper):
                 ("span", "hackerl"),
                 ("li", "feature"),
                 ("div", "amenity"),
-                ("span", "tag")
+                ("span", "tag"),
             ]
 
             for tag, class_name in feature_selectors:
@@ -587,17 +678,21 @@ class InBerlinWohnenScraper(BaseScraper):
                 import re
 
                 # Room count
-                room_match = re.search(r'(\d+(?:[.,]\d+)?)\s*(?:Zimmer|Raum|rooms?)', text_content, re.IGNORECASE)
+                room_match = re.search(
+                    r"(\d+(?:[.,]\d+)?)\s*(?:Zimmer|Raum|rooms?)",
+                    text_content,
+                    re.IGNORECASE,
+                )
                 if room_match:
                     details["Zimmer"] = room_match.group(1)
 
                 # Area
-                area_match = re.search(r'(\d+(?:[.,]\d+)?)\s*m²', text_content)
+                area_match = re.search(r"(\d+(?:[.,]\d+)?)\s*m²", text_content)
                 if area_match:
                     details["Wohnfläche"] = f"{area_match.group(1)} m²"
 
                 # Price
-                price_match = re.search(r'(\d+(?:[.,]\d+)?)\s*€', text_content)
+                price_match = re.search(r"(\d+(?:[.,]\d+)?)\s*€", text_content)
                 if price_match:
                     details["Miete"] = f"{price_match.group(1)} €"
 
@@ -606,7 +701,9 @@ class InBerlinWohnenScraper(BaseScraper):
             # Also check all detail values
             wbs_sources.extend(str(v) for v in details.values() if v)
 
-            wbs_required = any(check_wbs_required(source) for source in wbs_sources if source)
+            wbs_required = any(
+                check_wbs_required(source) for source in wbs_sources if source
+            )
 
             # Only return valid flats
             if flat_id and title_text and title_text != "No title":
@@ -616,7 +713,7 @@ class InBerlinWohnenScraper(BaseScraper):
                     link=link,
                     details=details,
                     wbs_required=wbs_required,
-                    source="InBerlinWohnen"
+                    source="InBerlinWohnen",
                 )
             else:
                 return None
@@ -624,6 +721,7 @@ class InBerlinWohnenScraper(BaseScraper):
         except Exception as e:
             logger.error(f"Error extracting flat details from InBerlinWohnen: {e}")
             return None
+
 
 class DegewoScraper(BaseScraper):
     async def fetch_flats(self) -> List[FlatDetails]:
@@ -638,11 +736,17 @@ class DegewoScraper(BaseScraper):
                 flats = []
 
                 # Check for high traffic message
-                if soup.find("div", class_="error-message") and "high traffic" in soup.text.lower():
+                if (
+                    soup.find("div", class_="error-message")
+                    and "high traffic" in soup.text.lower()
+                ):
                     raise HighTrafficError("Website experiencing high traffic")
 
                 # Find all flat elements
-                flat_elements = soup.find_all("article", class_="article-list__item article-list__item--immosearch")
+                flat_elements = soup.find_all(
+                    "article",
+                    class_="article-list__item article-list__item--immosearch",
+                )
                 logger.info(f"Found {len(flat_elements)} flat elements in HTML")
 
                 for flat in flat_elements:
@@ -650,6 +754,9 @@ class DegewoScraper(BaseScraper):
                     if flat_details:
                         flats.append(flat_details)
 
+                # Filter out duplicates within this fetch
+                flats = self._filter_duplicates(flats)
+                logger.debug(f"Flat IDs found: {[flat.id for flat in flats]}")
                 return flats
         except (WebsiteUnavailableError, HighTrafficError) as e:
             logger.error(f"Error fetching flats from Degewo: {e}")
@@ -689,11 +796,17 @@ class DegewoScraper(BaseScraper):
             for prop in properties:
                 svg = prop.find("svg")
                 if svg and "i-room" in svg.get("xlink:href", ""):
-                    details["Zimmeranzahl"] = prop.find("span", class_="text").text.strip()
+                    details["Zimmeranzahl"] = prop.find(
+                        "span", class_="text"
+                    ).text.strip()
                 elif svg and "i-squares" in svg.get("xlink:href", ""):
-                    details["Wohnfläche"] = prop.find("span", class_="text").text.strip()
+                    details["Wohnfläche"] = prop.find(
+                        "span", class_="text"
+                    ).text.strip()
                 elif svg and "i-calendar2" in svg.get("xlink:href", ""):
-                    details["Verfügbarkeit"] = prop.find("span", class_="text").text.strip()
+                    details["Verfügbarkeit"] = prop.find(
+                        "span", class_="text"
+                    ).text.strip()
 
             # Extract price
             price_element = flat_element.find("div", class_="article__price-tag")
@@ -711,11 +824,17 @@ class DegewoScraper(BaseScraper):
             for prop in properties:
                 svg = prop.find("svg")
                 if svg and "i-room" in svg.get("xlink:href", ""):
-                    details["Zimmeranzahl"] = prop.find("span", class_="text").text.strip()
+                    details["Zimmeranzahl"] = prop.find(
+                        "span", class_="text"
+                    ).text.strip()
                 elif svg and "i-squares" in svg.get("xlink:href", ""):
-                    details["Wohnfläche"] = prop.find("span", class_="text").text.strip()
+                    details["Wohnfläche"] = prop.find(
+                        "span", class_="text"
+                    ).text.strip()
                 elif svg and "i-calendar2" in svg.get("xlink:href", ""):
-                    details["Verfügbarkeit"] = prop.find("span", class_="text").text.strip()
+                    details["Verfügbarkeit"] = prop.find(
+                        "span", class_="text"
+                    ).text.strip()
 
             # Extract price
             price_element = flat_element.find("div", class_="article__price-tag")
@@ -735,11 +854,12 @@ class DegewoScraper(BaseScraper):
                 link=link,
                 details=details,
                 wbs_required=wbs_required,
-                source="Degewo"
+                source="Degewo",
             )
         except Exception as e:
             logger.error(f"Error extracting flat details from Degewo: {e}")
             return None
+
 
 class GesobauScraper(BaseScraper):
     async def fetch_flats(self) -> List[FlatDetails]:
@@ -754,7 +874,10 @@ class GesobauScraper(BaseScraper):
                 flats = []
 
                 # Check for high traffic message
-                if soup.find("div", class_="error-message") and "high traffic" in soup.text.lower():
+                if (
+                    soup.find("div", class_="error-message")
+                    and "high traffic" in soup.text.lower()
+                ):
                     raise HighTrafficError("Website experiencing high traffic")
 
                 # Find all flat elements
@@ -766,6 +889,8 @@ class GesobauScraper(BaseScraper):
                     if flat_details:
                         flats.append(flat_details)
 
+                # Filter out duplicates within this fetch
+                flats = self._filter_duplicates(flats)
                 return flats
         except (WebsiteUnavailableError, HighTrafficError) as e:
             logger.error(f"Error fetching flats from Gesobau: {e}")
@@ -795,7 +920,7 @@ class GesobauScraper(BaseScraper):
 
             # Extract details
             details = {}
-            
+
             # Extract address
             address_element = flat_element.find("p", class_="basicTeaser__text")
             if address_element:
@@ -825,11 +950,12 @@ class GesobauScraper(BaseScraper):
                 link=link,
                 details=details,
                 wbs_required=wbs_required,
-                source="Gesobau"
+                source="Gesobau",
             )
         except Exception as e:
             logger.error(f"Error extracting flat details from Gesobau: {e}")
             return None
+
 
 class GewobagScraper(BaseScraper):
     async def fetch_flats(self) -> List[FlatDetails]:
@@ -844,7 +970,10 @@ class GewobagScraper(BaseScraper):
                 flats = []
 
                 # Check for high traffic message
-                if soup.find("div", class_="error-message") and "high traffic" in soup.text.lower():
+                if (
+                    soup.find("div", class_="error-message")
+                    and "high traffic" in soup.text.lower()
+                ):
                     raise HighTrafficError("Website experiencing high traffic")
 
                 # Find all flat elements
@@ -856,6 +985,8 @@ class GewobagScraper(BaseScraper):
                     if flat_details:
                         flats.append(flat_details)
 
+                # Filter out duplicates within this fetch
+                flats = self._filter_duplicates(flats)
                 return flats
         except (WebsiteUnavailableError, HighTrafficError) as e:
             logger.error(f"Error fetching flats from Gewobag: {e}")
@@ -875,7 +1006,7 @@ class GewobagScraper(BaseScraper):
                 return None
 
             title_text = title_element.text.strip()
-            
+
             # Extract link from the footer
             link_element = flat_element.find("a", class_="read-more-link")
             link = link_element.get("href") if link_element else None
@@ -912,7 +1043,9 @@ class GewobagScraper(BaseScraper):
                     details["Gesamtmiete"] = kosten_row.find("td").text.strip()
 
                 # Extract characteristics
-                characteristics_row = info_table.find("tr", class_="angebot-characteristics")
+                characteristics_row = info_table.find(
+                    "tr", class_="angebot-characteristics"
+                )
                 if characteristics_row:
                     characteristics = []
                     for li in characteristics_row.find_all("li"):
@@ -930,11 +1063,12 @@ class GewobagScraper(BaseScraper):
                 link=link,
                 details=details,
                 wbs_required=wbs_required,
-                source="Gewobag"
+                source="Gewobag",
             )
         except Exception as e:
             logger.error(f"Error extracting flat details from Gewobag: {e}")
             return None
+
 
 class StadtUndLandScraper(BaseScraper):
     async def fetch_flats(self) -> List[FlatDetails]:
@@ -942,46 +1076,41 @@ class StadtUndLandScraper(BaseScraper):
         try:
             session = await get_session()
             headers = {
-                'Content-Type': 'application/json',
-                'Cache-Control': 'max-age=0',
-                'Connection': 'keep-alive',
-                'Host': 'd2396ha8oiavw0.cloudfront.net',
-                'Origin': 'https://stadtundland.de',
-                'Referer': 'https://stadtundland.de/wohnungssuche',
-                'Sec-Fetch-Dest': 'empty',
-                'Sec-Fetch-Mode': 'cors',
-                'Sec-Fetch-Site': 'cross-site',
+                "Content-Type": "application/json",
+                "Cache-Control": "max-age=0",
+                "Connection": "keep-alive",
+                "Host": "d2396ha8oiavw0.cloudfront.net",
+                "Origin": "https://stadtundland.de",
+                "Referer": "https://stadtundland.de/wohnungssuche",
+                "Sec-Fetch-Dest": "empty",
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Site": "cross-site",
             }
-            
+
             api_url = "https://d2396ha8oiavw0.cloudfront.net/sul-main/immoSearch"
-            payload = {
-                "offset": 0,
-                "cat": "wohnung"
-            }
-            
+            payload = {"offset": 0, "cat": "wohnung"}
+
             # Make the API request directly
             async with session.post(
-                api_url,
-                json=payload,
-                headers=headers,
-                timeout=30,
-                allow_redirects=True
+                api_url, json=payload, headers=headers, timeout=30, allow_redirects=True
             ) as response:
                 if response.status != 200:
                     logger.error(f"API response status: {response.status}")
                     logger.error(f"API response headers: {response.headers}")
                     response_text = await response.text()
                     logger.error(f"API response text: {response_text}")
-                    raise WebsiteUnavailableError(f"API returned status code {response.status}")
-                
+                    raise WebsiteUnavailableError(
+                        f"API returned status code {response.status}"
+                    )
+
                 try:
                     data = await response.json()
                     flats_data = data.get("data", [])
-                    
+
                     if not flats_data:
                         logger.info("No flats found in Stadt und Land response")
                         return []
-                    
+
                     flats = []
                     for flat_data in flats_data:
                         flat_details = self._extract_flat_details(flat_data)
@@ -993,11 +1122,11 @@ class StadtUndLandScraper(BaseScraper):
                     logger.info(f"Found {len(flats)} flats from Stadt und Land")
                     self._cleanup()
                     return flats
-                    
+
                 except Exception as e:
                     logger.error(f"Failed to parse JSON response: {e}")
                     raise WebsiteUnavailableError("Failed to parse API response")
-                    
+
         except (WebsiteUnavailableError, HighTrafficError) as e:
             logger.error(f"Error fetching flats from Stadt und Land: {e}")
             raise
@@ -1010,22 +1139,27 @@ class StadtUndLandScraper(BaseScraper):
             details_data = flat_data.get("details", {})
             flat_id = str(details_data.get("immoNumber", ""))
             title = flat_data.get("headline", "")
-            
+
             if not flat_id or not title:
                 return None
-            
+
             # Optimize address construction
             address_data = flat_data.get("address", {})
-            address = ", ".join(filter(None, [
-                address_data.get("street", ""),
-                address_data.get("house_number", ""),
-                address_data.get("precinct", ""),
-                address_data.get("postal_code", ""),
-                address_data.get("city", "")
-            ]))
-            
+            address = ", ".join(
+                filter(
+                    None,
+                    [
+                        address_data.get("street", ""),
+                        address_data.get("house_number", ""),
+                        address_data.get("precinct", ""),
+                        address_data.get("postal_code", ""),
+                        address_data.get("city", ""),
+                    ],
+                )
+            )
+
             # URL encode the flat ID
-            encoded_id = quote(flat_id, safe='')
+            encoded_id = quote(flat_id, safe="")
             link = f"https://stadtundland.de/wohnungssuche/{encoded_id}"
 
             # Optimize details dictionary construction
@@ -1042,9 +1176,12 @@ class StadtUndLandScraper(BaseScraper):
 
             # Optimize special features list
             special_features = []
-            if details_data.get("wheelchairFriendly"): special_features.append("Rollstuhlgerecht")
-            if details_data.get("seniorsFriendly"): special_features.append("Seniorengerecht")
-            if details_data.get("barrierFree"): special_features.append("Barrierefrei")
+            if details_data.get("wheelchairFriendly"):
+                special_features.append("Rollstuhlgerecht")
+            if details_data.get("seniorsFriendly"):
+                special_features.append("Seniorengerecht")
+            if details_data.get("barrierFree"):
+                special_features.append("Barrierefrei")
             if special_features:
                 details["Besondere Eigenschaften"] = ", ".join(special_features)
 
@@ -1057,9 +1194,9 @@ class StadtUndLandScraper(BaseScraper):
                 link=link,
                 details=details,
                 wbs_required=wbs_required,
-                source="Stadt und Land"
+                source="Stadt und Land",
             )
-            
+
         except Exception as e:
             logger.error(f"Error extracting flat details: {e}")
-            return None 
+            return None
