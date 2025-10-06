@@ -25,27 +25,31 @@ A Telegram bot that monitors Berlin housing websites for new apartment listings 
 ## Installation
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/yourusername/BerlinFlatBot.git
 cd BerlinFlatBot
 ```
 
 2. Install dependencies:
+
 ```bash
 pip install -r requirements.txt
 ```
 
 3. Create a `config.json` file with your settings:
+
 ```json
 {
-    "BOT_TOKEN": "your_telegram_bot_token",
-    "CHAT_ID": "your_chat_id",
-    "PRIVATE_CHAT_ID": "your_private_chat_id",
-    "MONITOR_INTERVAL": 60
+  "BOT_TOKEN": "your_telegram_bot_token",
+  "CHAT_ID": "your_chat_id",
+  "PRIVATE_CHAT_ID": "your_private_chat_id",
+  "MONITOR_INTERVAL": 60
 }
 ```
 
 4. (Optional) Set up as a system service:
+
 ```bash
 sudo cp telegram.service /etc/systemd/system/
 sudo systemctl daemon-reload
@@ -56,11 +60,13 @@ sudo systemctl start telegram.service
 ## Usage
 
 1. Start the bot:
+
 ```bash
 python bot.py
 ```
 
 2. Available Telegram commands:
+
 - `/list [scraper]` - Show current available flats (filtered by 2+ rooms, no WBS)
   - Optional: specify scraper name to filter results (e.g., `/list InBerlinWohnen`)
 - `/help` - Display help message with all available commands
@@ -76,9 +82,9 @@ python bot.py
 
 ## Dependencies
 
-- python-telegram-bot>=20.7,<23.0
-- aiohttp>=3.9.3,<4.0
-- beautifulsoup4>=4.12.3,<5.0
+- python-telegram-bot==22.5
+- aiohttp==3.12.15
+- beautifulsoup4==4.14.2
 
 ## Troubleshooting
 
@@ -89,7 +95,7 @@ If you encounter this error, it's likely due to a version mismatch. Try:
 ```bash
 pip install --upgrade python-telegram-bot
 # or force reinstall
-pip install --force-reinstall python-telegram-bot==20.7
+pip install --force-reinstall python-telegram-bot==22.5
 ```
 
 Make sure you're using Python 3.7+ and have a clean virtual environment.
@@ -97,9 +103,11 @@ Make sure you're using Python 3.7+ and have a clean virtual environment.
 ## Architecture
 
 ### Active Scrapers
+
 Currently, only **InBerlinWohnen** is actively monitored. Other scrapers (Degewo, Gesobau, Gewobag, Stadt und Land) are implemented but commented out in `bot.py` (lines 159-162).
 
 To enable additional scrapers, uncomment the desired lines in `bot.py`:
+
 ```python
 self.scrapers = [
     InBerlinWohnenScraper("https://inberlinwohnen.de/wohnungsfinder/"),
@@ -110,6 +118,7 @@ self.scrapers = [
 ```
 
 ### Error Handling
+
 - **Automatic Retry**: Failed requests retry with exponential backoff
 - **High Traffic Detection**: Recognizes 503/429 status codes and backs off
 - **Website Monitoring**: Tracks availability of each scraper
@@ -130,6 +139,7 @@ self.scrapers = [
 ## Configuration
 
 The `config.json` file requires:
+
 - `BOT_TOKEN`: Your Telegram bot token from [@BotFather](https://t.me/botfather)
 - `CHAT_ID`: Public chat ID where flat notifications are sent
 - `PRIVATE_CHAT_ID`: Private chat ID for error notifications and debugging
