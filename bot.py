@@ -170,12 +170,18 @@ class FlatMonitor:
         try:
             await self.bot.send_message(
                 chat_id=self.chat_id,
-                text="🏠 *Flat Monitor Started*\n\n"
-                "I will notify you about new flats every minute!\n\n"
-                "Available commands:\n"
-                "• /list - Show all current flats\n"
-                "• /help - Show this help message\n"
-                "• /status - Show website status",
+                text="🏠 *Berlin Flat Monitor Started*\n\n"
+                "I'm now actively monitoring Berlin housing websites for new apartments that match your criteria:\n"
+                "✅ 2+ rooms\n"
+                "✅ No WBS required\n\n"
+                f"📊 *Monitoring {len(self.scrapers)} housing website(s)*\n"
+                f"🔄 *Check interval: {self.config.monitor_interval} seconds*\n"
+                "🕐 *Notifications: 8 AM - 8 PM*\n\n"
+                "*Quick Commands:*\n"
+                "• /list - Show current available flats\n"
+                "• /status - Check website availability\n"
+                "• /help - View all commands\n\n"
+                "_You'll be notified instantly when matching apartments appear!_",
                 parse_mode="Markdown",
             )
             logger.info(f"Welcome message sent to chat {self.chat_id}")
@@ -190,12 +196,18 @@ class FlatMonitor:
                 try:
                     await self.bot.send_message(
                         chat_id=self.chat_id,
-                        text="🏠 *Flat Monitor Started*\n\n"
-                        "I will notify you about new flats every minute!\n\n"
-                        "Available commands:\n"
-                        "• /list - Show all current flats\n"
-                        "• /help - Show this help message\n"
-                        "• /status - Show website status",
+                        text="🏠 *Berlin Flat Monitor Started*\n\n"
+                        "I'm now actively monitoring Berlin housing websites for new apartments that match your criteria:\n"
+                        "✅ 2+ rooms\n"
+                        "✅ No WBS required\n\n"
+                        f"📊 *Monitoring {len(self.scrapers)} housing website(s)*\n"
+                        f"🔄 *Check interval: {self.config.monitor_interval} seconds*\n"
+                        "🕐 *Notifications: 8 AM - 8 PM*\n\n"
+                        "*Quick Commands:*\n"
+                        "• /list - Show current available flats\n"
+                        "• /status - Check website availability\n"
+                        "• /help - View all commands\n\n"
+                        "_You'll be notified instantly when matching apartments appear!_",
                         parse_mode="Markdown",
                     )
                     logger.info(f"Welcome message sent to new chat {self.chat_id}")
