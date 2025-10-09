@@ -229,7 +229,19 @@ class BaseScraper:
 
     def _filter_duplicates(self, flats: List[FlatDetails]) -> List[FlatDetails]:
         """Filter out duplicate flats based on their IDs."""
-        return [flat for flat in flats if not flat.is_duplicate()]
+        # First, remove duplicates within this batch using a local set
+        seen_in_batch = set()
+        unique_flats = []
+
+        for flat in flats:
+            if flat.id not in seen_in_batch:
+                seen_in_batch.add(flat.id)
+                unique_flats.append(flat)
+            else:
+                logger.debug(f"Filtered duplicate within batch: {flat.id} - {flat.title}")
+
+        # Then filter against global seen flats
+        return [flat for flat in unique_flats if not flat.is_duplicate()]
 
 
 class InBerlinWohnenScraper(BaseScraper):
