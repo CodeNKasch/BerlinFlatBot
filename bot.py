@@ -267,6 +267,10 @@ class FlatMonitor:
         }
 
     async def send_welcome(self):
+        # Check if current time is within allowed hours (8 AM - 8 PM)
+        current_hour = datetime.now().hour
+        is_quiet_hours = not (8 <= current_hour < 20)
+
         welcome_text = (
             "🏠 <b>Berlin Flat Monitor Started</b>\n\n"
             f"Monitoring {len(self.scrapers)} provider(s) every {self.config.monitor_interval}s\n"
@@ -278,7 +282,7 @@ class FlatMonitor:
                 chat_id=self.chat_id,
                 text=welcome_text,
                 parse_mode="HTML",
-                disable_notification=True,
+                disable_notification=is_quiet_hours
             )
             logger.info(f"Welcome message sent silently to chat {self.chat_id}")
         except TelegramError as e:
@@ -294,7 +298,7 @@ class FlatMonitor:
                         chat_id=self.chat_id,
                         text=welcome_text,
                         parse_mode="HTML",
-                        disable_notification=True,
+                        disable_notification=is_quiet_hours
                     )
                     logger.info(f"Welcome message sent silently to new chat {self.chat_id}")
                     return
@@ -311,10 +315,15 @@ class FlatMonitor:
         if str(update.effective_chat.id) != self.chat_id:
             return
 
+        # Check if current time is within allowed hours (8 AM - 8 PM)
+        current_hour = datetime.now().hour
+        is_quiet_hours = not (8 <= current_hour < 20)
+
         try:
             await update.message.reply_text(
                 text=self.formatter.format_help_message(),
                 parse_mode="HTML",
+                disable_notification=is_quiet_hours,
             )
             logger.info("Help message sent")
         except TelegramError as e:
@@ -326,6 +335,10 @@ class FlatMonitor:
         if str(update.effective_chat.id) != self.chat_id:
             return
 
+        # Check if current time is within allowed hours (8 AM - 8 PM)
+        current_hour = datetime.now().hour
+        is_quiet_hours = not (8 <= current_hour < 20)
+
         try:
             # Update statuses before showing
             await self.fetch_all_flats()
@@ -334,6 +347,7 @@ class FlatMonitor:
             await update.message.reply_text(
                 text=status_message,
                 parse_mode="HTML",
+                disable_notification=is_quiet_hours,
             )
             logger.info("Status message sent")
         except TelegramError as e:
@@ -403,6 +417,10 @@ class FlatMonitor:
         logger.info("Processing list command")
         logger.info(f"Current flats in cache: {len(self.current_flats)}")
 
+        # Check if current time is within allowed hours (8 AM - 8 PM)
+        current_hour = datetime.now().hour
+        is_quiet_hours = not (8 <= current_hour < 20)
+
         # Get the scraper name from the command if provided
         scraper_name = None
         if context.args and len(context.args) > 0:
@@ -418,7 +436,10 @@ class FlatMonitor:
             self.current_flats = flats  # Update cache with new flats
 
         if not flats:
-            await update.message.reply_text("No flats available at the moment.")
+            await update.message.reply_text(
+                "No flats available at the moment.",
+                disable_notification=is_quiet_hours,
+            )
             return
 
         try:
@@ -431,7 +452,8 @@ class FlatMonitor:
                 ]
                 if not flats:
                     await update.message.reply_text(
-                        f"No flats available from {scraper_name}."
+                        f"No flats available from {scraper_name}.",
+                        disable_notification=is_quiet_hours,
                     )
                     return
 
@@ -467,13 +489,13 @@ class FlatMonitor:
                 header = f"Found {total_flats} flats total, but none match filters (2+ rooms, no WBS)"
                 if scraper_name:
                     header = f"Found {total_flats} flats from {scraper_name}, but none match filters (2+ rooms, no WBS)"
-                await update.message.reply_text(header)
+                await update.message.reply_text(header, disable_notification=is_quiet_hours)
                 return
 
             header = f"Found {total_flats} flats ({filtered_count} after filters, showing {len(flats)})"
             if scraper_name:
                 header = f"Found {total_flats} flats from {scraper_name} ({filtered_count} after filters, showing {len(flats)})"
-            await update.message.reply_text(header)
+            await update.message.reply_text(header, disable_notification=is_quiet_hours)
 
             for flat in flats:
                 message = self.formatter.format_flat_message(flat)
@@ -481,17 +503,23 @@ class FlatMonitor:
                     text=message,
                     parse_mode="HTML",
                     disable_web_page_preview=True,
+                    disable_notification=is_quiet_hours,
                 )
             logger.info(f"Sent {len(flats)} flats")
         except TelegramError as e:
             logger.error(f"Failed to send list: {e}")
 
     async def send_error_notification(self, error_message: str):
+        # Check if current time is within allowed hours (8 AM - 8 PM)
+        current_hour = datetime.now().hour
+        is_quiet_hours = not (8 <= current_hour < 20)
+
         try:
             await self.bot.send_message(
                 chat_id=self.private_chat_id,
                 text=f"⚠️ <b>Error in Flat Monitor</b>\n\n{error_message}",
                 parse_mode="HTML",
+                disable_notification=is_quiet_hours,
             )
             logger.info(
                 f"Error notification sent to private chat {self.private_chat_id}"
@@ -605,6 +633,10 @@ class FlatMonitor:
         if str(update.effective_chat.id) != self.chat_id:
             return
 
+        # Check if current time is within allowed hours (8 AM - 8 PM)
+        current_hour = datetime.now().hour
+        is_quiet_hours = not (8 <= current_hour < 20)
+
         reset_seen_flats()
         message = "🏠 <b>Test Results</b>\n\n"
 
@@ -626,7 +658,8 @@ class FlatMonitor:
             await update.message.reply_text(
                 text=message,
                 parse_mode="HTML",
-                disable_web_page_preview=True
+                disable_web_page_preview=True,
+                disable_notification=is_quiet_hours,
             )
         except TelegramError as e:
             logger.error(f"Failed to send test results: {e}")
@@ -638,10 +671,17 @@ class FlatMonitor:
         if str(update.effective_chat.id) != self.chat_id:
             return
 
+        # Check if current time is within allowed hours (8 AM - 8 PM)
+        current_hour = datetime.now().hour
+        is_quiet_hours = not (8 <= current_hour < 20)
+
         try:
             self.current_flats = []
             reset_seen_flats()
-            await update.message.reply_text("✅ All caches cleared successfully!")
+            await update.message.reply_text(
+                "✅ All caches cleared successfully!",
+                disable_notification=is_quiet_hours,
+            )
             logger.info("All caches cleared")
         except TelegramError as e:
             logger.error(f"Failed to send clear confirmation: {e}")
