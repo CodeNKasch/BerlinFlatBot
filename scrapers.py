@@ -20,8 +20,10 @@ logger = logging.getLogger(__name__)
 _global_session = None
 # Global set to track seen flat IDs
 _seen_flat_ids: Set[str] = set()
-# Cache file for persisting seen flat IDs
-_SEEN_FLATS_CACHE_FILE = "seen_flats_cache.json"
+# Cache file for persisting seen flat IDs (in /tmp to avoid SD card wear)
+_SEEN_FLATS_CACHE_FILE = "/tmp/seen_flats_cache.json"
+# Track if cache has been modified since last save
+_cache_modified = False
 
 
 async def get_session() -> aiohttp.ClientSession:
@@ -61,31 +63,49 @@ async def close_session():
 
 
 def load_seen_flats():
-    """Load seen flat IDs from cache file."""
-    global _seen_flat_ids
+    """Load seen flat IDs from cache file in /tmp."""
+    global _seen_flat_ids, _cache_modified
     cache_file = Path(_SEEN_FLATS_CACHE_FILE)
     if cache_file.exists():
         try:
             with open(cache_file, "r") as f:
                 data = json.load(f)
-                _seen_flat_ids = set(data.get("seen_ids", []))
-                logger.info(f"Loaded {len(_seen_flat_ids)} seen flat IDs from cache")
+                # Handle both old format {"seen_ids": [...]} and new format [...]
+                if isinstance(data, dict):
+                    _seen_flat_ids = set(data.get("seen_ids", []))
+                else:
+                    _seen_flat_ids = set(data)
+                logger.info(f"Loaded {len(_seen_flat_ids)} seen flat IDs from /tmp cache")
+                _cache_modified = False
         except (json.JSONDecodeError, IOError) as e:
             logger.error(f"Failed to load seen flats cache: {e}")
             _seen_flat_ids = set()
+            _cache_modified = False
     else:
         logger.info("No seen flats cache file found, starting fresh")
         _seen_flat_ids = set()
+        _cache_modified = False
 
 
-def save_seen_flats():
-    """Save seen flat IDs to cache file."""
-    global _seen_flat_ids
+def save_seen_flats(force: bool = False):
+    """Save seen flat IDs to cache file only if modified.
+
+    Args:
+        force: If True, save even if not modified
+    """
+    global _seen_flat_ids, _cache_modified
+
+    # Only write if cache was modified or forced
+    if not force and not _cache_modified:
+        return
+
     try:
         cache_file = Path(_SEEN_FLATS_CACHE_FILE)
+        # Write compact JSON (no spaces/indentation) to minimize size
         with open(cache_file, "w") as f:
-            json.dump({"seen_ids": list(_seen_flat_ids)}, f)
-        logger.debug(f"Saved {len(_seen_flat_ids)} seen flat IDs to cache")
+            json.dump(list(_seen_flat_ids), f, separators=(',', ':'))
+        logger.debug(f"Saved {len(_seen_flat_ids)} seen flat IDs to /tmp cache")
+        _cache_modified = False
     except IOError as e:
         logger.error(f"Failed to save seen flats cache: {e}")
 
@@ -160,10 +180,11 @@ class FlatDetails:
 
     def is_duplicate(self) -> bool:
         """Check if this flat has been seen before."""
-        global _seen_flat_ids
+        global _seen_flat_ids, _cache_modified
         if self.id in _seen_flat_ids:
             return True
         _seen_flat_ids.add(self.id)
+        _cache_modified = True  # Mark cache as needing save
         return False
 
 
