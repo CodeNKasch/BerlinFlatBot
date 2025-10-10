@@ -580,6 +580,13 @@ class InBerlinWohnenScraper(BaseScraper):
                 details[StandardFields.AREA] = (
                     f"{str(apartment_data['area']).replace('.', ',')} m²"
                 )
+
+            # Debug: Log all rent-related fields
+            rent_fields = {k: v for k, v in apartment_data.items() if 'rent' in k.lower() or 'cost' in k.lower() or 'miete' in k.lower()}
+            if rent_fields:
+                logger.debug(f"Rent fields found for flat {flat_id}: {rent_fields}")
+
+            # Extract rent information - try various field names
             if "rentNet" in apartment_data:
                 details[StandardFields.RENT_COLD] = (
                     f"{str(apartment_data['rentNet']).replace('.', ',')} €"
@@ -587,6 +594,15 @@ class InBerlinWohnenScraper(BaseScraper):
             if "rentTotal" in apartment_data:
                 details[StandardFields.RENT_WARM] = (
                     f"{str(apartment_data['rentTotal']).replace('.', ',')} €"
+                )
+            # Also check for alternative field names
+            if "rentGross" in apartment_data:
+                details[StandardFields.RENT_WARM] = (
+                    f"{str(apartment_data['rentGross']).replace('.', ',')} €"
+                )
+            if "additionalCosts" in apartment_data:
+                details[StandardFields.RENT_ADDITIONAL] = (
+                    f"{str(apartment_data['additionalCosts']).replace('.', ',')} €"
                 )
 
             # Extract availability
