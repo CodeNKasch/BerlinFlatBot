@@ -88,57 +88,123 @@ class MessageFormatter:
 
     @staticmethod
     def format_flat_message(flat: FlatDetails) -> str:
-        # Start with WBS icon
+        # Start with WBS icon and enhanced title with link symbol
         icon = "🏠" if flat.wbs_required else "✅"
 
-        # Create message with icon and title
         if flat.link:
-            message = f"{icon} [*{flat.title}*]({flat.link})\n"
+            message = f"{icon} 🔗 *[{flat.title}]({flat.link})*\n"
         else:
             message = f"{icon} *{flat.title}*\n"
 
-        # Define field display order and labels (excluding ADDRESS - handled separately)
-        field_config = [
-            (StandardFields.DISTRICT, "🗺️ District"),
-            (StandardFields.ROOMS, "🚪 Rooms"),
-            (StandardFields.AREA, "📐 Area"),
-            (StandardFields.RENT_COLD, "💶 Cold Rent"),
-            (StandardFields.RENT_WARM, "💶 Warm Rent"),
-            (StandardFields.RENT_TOTAL, "💶 Total Rent"),
-            (StandardFields.RENT_ADDITIONAL, "💸 Additional Costs"),
-            (StandardFields.RENT_HEATING, "🔥 Heating Costs"),
-            (StandardFields.AVAILABLE_FROM, "📅 Available From"),
-            (StandardFields.FEATURES, "⭐ Features"),
-        ]
+        if not flat.details:
+            return message
 
-        # Add details in order
-        if flat.details:
-            # Special handling for Address with Google Maps link
-            address = flat.details.get(StandardFields.ADDRESS)
-            if address and not MessageFormatter._is_empty_value(str(address)):
-                # URL encode the address for Google Maps
-                from urllib.parse import quote
-                encoded_address = quote(address)
-                maps_link = f"https://www.google.com/maps/search/?api=1&query={encoded_address}"
-                message += f"📍 Address: [{address}]({maps_link})\n"
+        # Helper function to extract numeric value from string
+        def extract_number(value_str):
+            if not value_str:
+                return None
+            import re
+            # Remove thousand separators and convert comma to dot for decimal
+            cleaned = value_str.replace('.', '').replace(',', '.')
+            match = re.search(r'(\d+(?:\.\d+)?)', cleaned)
+            return float(match.group(1)) if match else None
 
-            # Add other fields
-            for field_key, field_label in field_config:
-                value = flat.details.get(field_key)
-                if value and not MessageFormatter._is_empty_value(str(value)):
-                    message += f"{field_label}: {value}\n"
+        # Address + District combined line
+        address = flat.details.get(StandardFields.ADDRESS)
+        district = flat.details.get(StandardFields.DISTRICT)
 
-            # Special handling for Provider + Object ID on one line
-            provider = flat.details.get(StandardFields.PROVIDER)
-            object_id = flat.details.get(StandardFields.OBJECT_ID)
+        if address and not MessageFormatter._is_empty_value(str(address)):
+            from urllib.parse import quote
+            # Combine district with address if available
+            if district and not MessageFormatter._is_empty_value(str(district)):
+                display_address = f"{address} ({district})"
+            else:
+                display_address = address
 
-            if provider and not MessageFormatter._is_empty_value(str(provider)):
-                if object_id and not MessageFormatter._is_empty_value(str(object_id)):
-                    message += f"🏢 Provider: {provider} ({object_id})\n"
-                else:
-                    message += f"🏢 Provider: {provider}\n"
-            elif object_id and not MessageFormatter._is_empty_value(str(object_id)):
-                message += f"🔑 Object ID: {object_id}\n"
+            encoded_address = quote(address)
+            maps_link = f"https://www.google.com/maps/search/?api=1&query={encoded_address}"
+            message += f"📍 [{display_address}]({maps_link})\n"
+        elif district and not MessageFormatter._is_empty_value(str(district)):
+            message += f"🗺️ {district}\n"
+
+        # Rooms + Area + Price per m² combined line
+        rooms = flat.details.get(StandardFields.ROOMS)
+        area = flat.details.get(StandardFields.AREA)
+
+        size_parts = []
+        if rooms and not MessageFormatter._is_empty_value(str(rooms)):
+            # Extract just the number
+            room_num = extract_number(rooms)
+            if room_num:
+                size_parts.append(f"{int(room_num) if room_num.is_integer() else room_num} rooms")
+            else:
+                size_parts.append(f"{rooms}")
+
+        area_value = None
+        if area and not MessageFormatter._is_empty_value(str(area)):
+            area_value = extract_number(area)
+            if area_value:
+                size_parts.append(f"{int(area_value) if area_value.is_integer() else area_value} m²")
+            else:
+                size_parts.append(area)
+
+        # Calculate price per m² if we have both rent and area
+        rent_warm = flat.details.get(StandardFields.RENT_WARM)
+        rent_total = flat.details.get(StandardFields.RENT_TOTAL)
+        rent_for_calc = rent_warm or rent_total
+
+        if rent_for_calc and area_value:
+            rent_value = extract_number(rent_for_calc)
+            if rent_value and area_value > 0:
+                price_per_sqm = rent_value / area_value
+                size_parts.append(f"{price_per_sqm:.1f} €/m²")
+
+        if size_parts:
+            message += f"🏠 {' · '.join(size_parts)}\n"
+
+        # Rent display (smart combination)
+        rent_cold = flat.details.get(StandardFields.RENT_COLD)
+        rent_additional = flat.details.get(StandardFields.RENT_ADDITIONAL)
+        rent_heating = flat.details.get(StandardFields.RENT_HEATING)
+
+        rent_parts = []
+        if rent_warm and not MessageFormatter._is_empty_value(str(rent_warm)):
+            rent_parts.append(f"{rent_warm} warm")
+        elif rent_total and not MessageFormatter._is_empty_value(str(rent_total)):
+            rent_parts.append(f"{rent_total} total")
+
+        if rent_cold and not MessageFormatter._is_empty_value(str(rent_cold)):
+            rent_parts.append(f"{rent_cold} cold")
+
+        if rent_parts:
+            message += f"💶 {' · '.join(rent_parts)}\n"
+        elif rent_additional and not MessageFormatter._is_empty_value(str(rent_additional)):
+            message += f"💸 {rent_additional} utilities\n"
+
+        # Available from
+        available = flat.details.get(StandardFields.AVAILABLE_FROM)
+        if available and not MessageFormatter._is_empty_value(str(available)):
+            message += f"📅 From {available}\n"
+
+        # Features
+        features = flat.details.get(StandardFields.FEATURES)
+        if features and not MessageFormatter._is_empty_value(str(features)):
+            # Replace commas with middle dots for cleaner look
+            features_clean = features.replace(', ', ' · ').replace(',', ' · ')
+            message += f"⭐ {features_clean}\n"
+
+        # Provider + Object ID combined
+        provider = flat.details.get(StandardFields.PROVIDER)
+        object_id = flat.details.get(StandardFields.OBJECT_ID)
+
+        provider_parts = []
+        if provider and not MessageFormatter._is_empty_value(str(provider)):
+            provider_parts.append(provider)
+        if object_id and not MessageFormatter._is_empty_value(str(object_id)):
+            provider_parts.append(f"ID {object_id}")
+
+        if provider_parts:
+            message += f"🏢 {' · '.join(provider_parts)}\n"
 
         return message
 
