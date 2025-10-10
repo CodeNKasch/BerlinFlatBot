@@ -250,7 +250,6 @@ class FlatMonitor:
         self.chat_id = config.chat_id
         self.private_chat_id = config.private_chat_id
         self.current_flats: List[FlatDetails] = []
-        self.buffered_flats: List[FlatDetails] = []  # Buffer for flats outside allowed hours
         self.application: Optional[Application] = None
         self.formatter = MessageFormatter()
 
@@ -272,15 +271,16 @@ class FlatMonitor:
             "🏠 <b>Berlin Flat Monitor Started</b>\n\n"
             f"Monitoring {len(self.scrapers)} provider(s) every {self.config.monitor_interval}s\n"
             "🎯 2+ rooms • No WBS required\n"
-            "🕐 Notifications: 8 AM - 8 PM\n\n"
+            "🔕 Silent notifications: 8 PM - 8 AM\n\n"
         )
         try:
             await self.bot.send_message(
                 chat_id=self.chat_id,
                 text=welcome_text,
                 parse_mode="HTML",
+                disable_notification=True,
             )
-            logger.info(f"Welcome message sent to chat {self.chat_id}")
+            logger.info(f"Welcome message sent silently to chat {self.chat_id}")
         except TelegramError as e:
             error_msg = f"Failed to send welcome message: {str(e)}"
             logger.error(error_msg)
@@ -294,8 +294,9 @@ class FlatMonitor:
                         chat_id=self.chat_id,
                         text=welcome_text,
                         parse_mode="HTML",
+                        disable_notification=True,
                     )
-                    logger.info(f"Welcome message sent to new chat {self.chat_id}")
+                    logger.info(f"Welcome message sent silently to new chat {self.chat_id}")
                     return
                 except TelegramError as retry_error:
                     error_msg = f"Failed to send welcome message to new chat: {str(retry_error)}"
@@ -369,10 +370,10 @@ class FlatMonitor:
 
         # Check if current time is within allowed hours (8 AM - 8 PM)
         current_hour = datetime.now().hour
-        if not (8 <= current_hour < 20):
-            logger.info(f"Outside allowed hours ({current_hour}:00) - buffering {len(new_flats)} flats for later")
-            self.buffered_flats.extend(new_flats)
-            return
+        is_quiet_hours = not (8 <= current_hour < 20)
+
+        if is_quiet_hours:
+            logger.info(f"Quiet hours ({current_hour}:00) - sending {len(new_flats)} flats silently")
 
         try:
             for flat in new_flats:
@@ -382,36 +383,11 @@ class FlatMonitor:
                     text=message,
                     parse_mode="HTML",
                     disable_web_page_preview=True,
+                    disable_notification=is_quiet_hours,
                 )
         except TelegramError as e:
             logger.error(f"Failed to send update: {e}")
 
-    async def send_buffered_flats(self):
-        """Send any buffered flats if we're in allowed hours"""
-        if not self.buffered_flats:
-            return
-
-        current_hour = datetime.now().hour
-        if 8 <= current_hour < 20:
-            logger.info(f"Sending {len(self.buffered_flats)} buffered flats")
-            # Store buffer locally and clear immediately to prevent re-sending on failure
-            flats_to_send = self.buffered_flats.copy()
-            self.buffered_flats.clear()
-
-            try:
-                sent_count = 0
-                for flat in flats_to_send:
-                    message = self.formatter.format_flat_message(flat)
-                    await self.bot.send_message(
-                        chat_id=self.chat_id,
-                        text=message,
-                        parse_mode="HTML",
-                        disable_web_page_preview=True,
-                    )
-                    sent_count += 1
-                logger.info(f"Successfully sent {sent_count} buffered flats")
-            except TelegramError as e:
-                logger.error(f"Failed to send buffered flats after sending {sent_count}/{len(flats_to_send)}: {e}")
 
     async def handle_list_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -543,9 +519,6 @@ class FlatMonitor:
 
         while True:
             try:
-                # Check and send any buffered flats if we're in allowed hours
-                await self.send_buffered_flats()
-
                 logger.info("Checking for new flats...")
                 new_flats = await self.fetch_all_flats()
 
@@ -667,10 +640,9 @@ class FlatMonitor:
 
         try:
             self.current_flats = []
-            self.buffered_flats = []
             reset_seen_flats()
-            await update.message.reply_text("✅ All caches cleared successfully (current flats, buffered flats, and seen flats)!")
-            logger.info("All caches cleared (current, buffered, and seen flats)")
+            await update.message.reply_text("✅ All caches cleared successfully!")
+            logger.info("All caches cleared")
         except TelegramError as e:
             logger.error(f"Failed to send clear confirmation: {e}")
             await self.send_error_notification(
