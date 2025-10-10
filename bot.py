@@ -550,38 +550,28 @@ class FlatMonitor:
         if str(update.effective_chat.id) != self.chat_id:
             return
 
-        reset_seen_flats()  # Reset seen flats before starting
+        reset_seen_flats()
         message = "🏠 *Test Results*\n\n"
 
         for scraper in self.scrapers:
             try:
                 flats = await scraper.fetch_flats()
                 if flats:
-                    flat = flats[0]  # Get the first flat
-                    # Escape special characters in title and ensure proper Markdown formatting
-                    safe_title = (
-                        flat.title.replace("*", "\\*")
-                        .replace("_", "\\_")
-                        .replace("[", "\\[")
-                        .replace("]", "\\]")
-                    )
-
-                    # Create a minimal message with just the essential info
+                    flat = flats[0]
                     message += f"*{scraper.__class__.__name__}*\n"
-                    if flat.link:
-                        message += f"[_{safe_title}_]({flat.link})\n\n"
-                    else:
-                        message += f"_{safe_title}_\n\n"
+                    message += self.formatter.format_flat_message(flat)
+                    message += "\n"
                 else:
-                    message += f"*{scraper.__class__.__name__}*\n"
-                    message += "_No flats found_\n\n"
+                    message += f"*{scraper.__class__.__name__}*\n_No flats found_\n\n"
             except Exception as e:
-                message += f"*{scraper.__class__.__name__}*\n"
-                message += f"_Error: {str(e)}_\n\n"
+                message += f"*{scraper.__class__.__name__}*\n_Error: {str(e)}_\n\n"
+                logger.error(f"Test failed for {scraper.__class__.__name__}: {e}")
 
         try:
             await update.message.reply_text(
-                text=message, parse_mode="Markdown", disable_web_page_preview=True
+                text=message,
+                parse_mode="Markdown",
+                disable_web_page_preview=True
             )
         except TelegramError as e:
             logger.error(f"Failed to send test results: {e}")
