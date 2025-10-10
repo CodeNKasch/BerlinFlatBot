@@ -25,6 +25,7 @@ from scrapers import (
     GewobagScraper,
     HighTrafficError,
     InBerlinWohnenScraper,
+    StandardFields,
     WebsiteUnavailableError,
 )
 
@@ -69,6 +70,23 @@ class Config:
 
 class MessageFormatter:
     @staticmethod
+    def _is_empty_value(value: str) -> bool:
+        """Check if a value is empty or contains only units without data."""
+        if not value:
+            return True
+        value = value.strip()
+        if not value:
+            return True
+        # Check for values that are just units with no actual data
+        # e.g., "€", "m²", " €", " m²"
+        import re
+        # Remove common units and whitespace
+        cleaned = re.sub(r'[€\s,.]', '', value)
+        if cleaned in ['', 'm²', 'm2']:
+            return True
+        return False
+
+    @staticmethod
     def format_flat_message(flat: FlatDetails) -> str:
         # Start with WBS icon
         icon = "🏠" if flat.wbs_required else "✅"
@@ -79,22 +97,29 @@ class MessageFormatter:
         else:
             message = f"{icon} *{flat.title}*\n"
 
-        # Add details
+        # Define field display order and labels
+        field_config = [
+            (StandardFields.ADDRESS, "📍 Adresse"),
+            (StandardFields.DISTRICT, "🗺️ Bezirk"),
+            (StandardFields.ROOMS, "🚪 Zimmer"),
+            (StandardFields.AREA, "📐 Wohnfläche"),
+            (StandardFields.RENT_COLD, "💶 Kaltmiete"),
+            (StandardFields.RENT_WARM, "💶 Warmmiete"),
+            (StandardFields.RENT_TOTAL, "💶 Gesamtmiete"),
+            (StandardFields.RENT_ADDITIONAL, "💸 Nebenkosten"),
+            (StandardFields.RENT_HEATING, "🔥 Heizkosten"),
+            (StandardFields.AVAILABLE_FROM, "📅 Verfügbar ab"),
+            (StandardFields.PROVIDER, "🏢 Anbieter"),
+            (StandardFields.FEATURES, "⭐ Besonderheiten"),
+            (StandardFields.OBJECT_ID, "🔑 Objekt-ID"),
+        ]
+
+        # Add details in order
         if flat.details:
-            for key, value in flat.details.items():
-                if value:  # Check if value exists
-                    # Convert non-string values to strings and handle them properly
-                    if isinstance(value, str):
-                        if value.strip():  # Only add non-empty strings
-                            message += f"• {key}: {value}\n"
-                    elif isinstance(value, (list, dict)):
-                        # Skip complex data structures that don't display well
-                        continue
-                    else:
-                        # Convert other types to strings
-                        str_value = str(value).strip()
-                        if str_value:
-                            message += f"• {key}: {str_value}\n"
+            for field_key, field_label in field_config:
+                value = flat.details.get(field_key)
+                if value and not MessageFormatter._is_empty_value(str(value)):
+                    message += f"{field_label}: {value}\n"
 
         return message
 
@@ -371,17 +396,16 @@ class FlatMonitor:
 
             # Apply WBS and room filters (same as monitoring loop)
             def get_room_count(flat):
-                room_fields = ["Zimmer", "Zimmeranzahl", "rooms"]
-                for field in room_fields:
-                    if field in flat.details:
-                        try:
-                            room_str = flat.details[field].lower()
-                            import re
-                            match = re.search(r"\d+(?:[.,]\d+)?", room_str)
-                            if match:
-                                return float(match.group().replace(",", "."))
-                        except (ValueError, AttributeError):
-                            continue
+                # Use standardized field name
+                if StandardFields.ROOMS in flat.details:
+                    try:
+                        room_str = flat.details[StandardFields.ROOMS].lower()
+                        import re
+                        match = re.search(r"\d+(?:[.,]\d+)?", room_str)
+                        if match:
+                            return float(match.group().replace(",", "."))
+                    except (ValueError, AttributeError):
+                        pass
                 return 0
 
             # Filter for 2+ rooms and no WBS requirement
@@ -468,21 +492,19 @@ class FlatMonitor:
 
                 # Filter for flats with 2 or more rooms and not requiring WBS
                 def get_room_count(flat):
-                    # Try different possible room field names
-                    room_fields = ["Zimmer", "Zimmeranzahl", "rooms"]
-                    for field in room_fields:
-                        if field in flat.details:
-                            try:
-                                # Handle different formats: "2", "2 Zimmer", "2.0", etc.
-                                room_str = flat.details[field].lower()
-                                # Extract first number from string
-                                import re
+                    # Use standardized field name
+                    if StandardFields.ROOMS in flat.details:
+                        try:
+                            # Handle different formats: "2", "2 Zimmer", "2.0", etc.
+                            room_str = flat.details[StandardFields.ROOMS].lower()
+                            # Extract first number from string
+                            import re
 
-                                match = re.search(r"\d+(?:[.,]\d+)?", room_str)
-                                if match:
-                                    return float(match.group().replace(",", "."))
-                            except (ValueError, AttributeError):
-                                continue
+                            match = re.search(r"\d+(?:[.,]\d+)?", room_str)
+                            if match:
+                                return float(match.group().replace(",", "."))
+                        except (ValueError, AttributeError):
+                            pass
                     return 0  # Return 0 if no valid room count found
 
                 # Debug output for all new entries
