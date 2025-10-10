@@ -1,10 +1,12 @@
 import asyncio
 import gc
+import json
 import logging
 import re
 import ssl
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 from urllib.parse import quote
 
@@ -18,6 +20,8 @@ logger = logging.getLogger(__name__)
 _global_session = None
 # Global set to track seen flat IDs
 _seen_flat_ids: Set[str] = set()
+# Cache file for persisting seen flat IDs
+_SEEN_FLATS_CACHE_FILE = "seen_flats_cache.json"
 
 
 async def get_session() -> aiohttp.ClientSession:
@@ -56,10 +60,47 @@ async def close_session():
         _global_session = None
 
 
+def load_seen_flats():
+    """Load seen flat IDs from cache file."""
+    global _seen_flat_ids
+    cache_file = Path(_SEEN_FLATS_CACHE_FILE)
+    if cache_file.exists():
+        try:
+            with open(cache_file, "r") as f:
+                data = json.load(f)
+                _seen_flat_ids = set(data.get("seen_ids", []))
+                logger.info(f"Loaded {len(_seen_flat_ids)} seen flat IDs from cache")
+        except (json.JSONDecodeError, IOError) as e:
+            logger.error(f"Failed to load seen flats cache: {e}")
+            _seen_flat_ids = set()
+    else:
+        logger.info("No seen flats cache file found, starting fresh")
+        _seen_flat_ids = set()
+
+
+def save_seen_flats():
+    """Save seen flat IDs to cache file."""
+    global _seen_flat_ids
+    try:
+        cache_file = Path(_SEEN_FLATS_CACHE_FILE)
+        with open(cache_file, "w") as f:
+            json.dump({"seen_ids": list(_seen_flat_ids)}, f)
+        logger.debug(f"Saved {len(_seen_flat_ids)} seen flat IDs to cache")
+    except IOError as e:
+        logger.error(f"Failed to save seen flats cache: {e}")
+
+
 def reset_seen_flats():
-    """Reset the set of seen flat IDs."""
+    """Reset the set of seen flat IDs and delete cache file."""
     global _seen_flat_ids
     _seen_flat_ids.clear()
+    cache_file = Path(_SEEN_FLATS_CACHE_FILE)
+    if cache_file.exists():
+        try:
+            cache_file.unlink()
+            logger.info("Cleared seen flats cache file")
+        except IOError as e:
+            logger.error(f"Failed to delete seen flats cache file: {e}")
 
 
 def check_wbs_required(text: str) -> bool:
