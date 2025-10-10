@@ -97,9 +97,8 @@ class MessageFormatter:
         else:
             message = f"{icon} *{flat.title}*\n"
 
-        # Define field display order and labels
+        # Define field display order and labels (excluding ADDRESS - handled separately)
         field_config = [
-            (StandardFields.ADDRESS, "📍 Address"),
             (StandardFields.DISTRICT, "🗺️ District"),
             (StandardFields.ROOMS, "🚪 Rooms"),
             (StandardFields.AREA, "📐 Area"),
@@ -114,6 +113,16 @@ class MessageFormatter:
 
         # Add details in order
         if flat.details:
+            # Special handling for Address with Google Maps link
+            address = flat.details.get(StandardFields.ADDRESS)
+            if address and not MessageFormatter._is_empty_value(str(address)):
+                # URL encode the address for Google Maps
+                from urllib.parse import quote
+                encoded_address = quote(address)
+                maps_link = f"https://www.google.com/maps/search/?api=1&query={encoded_address}"
+                message += f"📍 Address: [{address}]({maps_link})\n"
+
+            # Add other fields
             for field_key, field_label in field_config:
                 value = flat.details.get(field_key)
                 if value and not MessageFormatter._is_empty_value(str(value)):
