@@ -119,9 +119,9 @@ class MessageFormatter:
                 display_address = address
             encoded_address = quote(address)
             maps_link = f"https://www.google.com/maps/search/?api=1&query={encoded_address}"
-            message += f"  <a href='{maps_link}' >{display_address}</a>\n"
+            message += f"📍 <a href='{maps_link}' >{display_address}</a>\n"
         elif district and not MessageFormatter._is_empty_value(str(district)):
-            message += f"  {district}\n"
+            message += f"📍 {district}\n"
 
         # Rooms + Area + Price per m² combined line
         rooms = flat.details.get(StandardFields.ROOMS)
@@ -157,17 +157,20 @@ class MessageFormatter:
         if size_parts:
             message += f"📐 {' • '.join(size_parts)}\n"
 
-        # Rent display (smart combination) with monospace for prices
+        # Rent display - show the most important rent information
         rent_cold = flat.details.get(StandardFields.RENT_COLD)
         rent_additional = flat.details.get(StandardFields.RENT_ADDITIONAL)
         rent_heating = flat.details.get(StandardFields.RENT_HEATING)
 
         rent_parts = []
+
+        # Show warm rent (preferred) or total rent
         if rent_warm and not MessageFormatter._is_empty_value(str(rent_warm)):
             rent_parts.append(f"{rent_warm} warm")
         elif rent_total and not MessageFormatter._is_empty_value(str(rent_total)):
             rent_parts.append(f"{rent_total} total")
 
+        # Optionally show cold rent as well
         if rent_cold and not MessageFormatter._is_empty_value(str(rent_cold)):
             rent_parts.append(f"{rent_cold} cold")
 
