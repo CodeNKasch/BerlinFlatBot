@@ -99,19 +99,19 @@ class MessageFormatter:
 
         # Define field display order and labels
         field_config = [
-            (StandardFields.ADDRESS, "📍 Adresse"),
-            (StandardFields.DISTRICT, "🗺️ Bezirk"),
-            (StandardFields.ROOMS, "🚪 Zimmer"),
-            (StandardFields.AREA, "📐 Wohnfläche"),
-            (StandardFields.RENT_COLD, "💶 Kaltmiete"),
-            (StandardFields.RENT_WARM, "💶 Warmmiete"),
-            (StandardFields.RENT_TOTAL, "💶 Gesamtmiete"),
-            (StandardFields.RENT_ADDITIONAL, "💸 Nebenkosten"),
-            (StandardFields.RENT_HEATING, "🔥 Heizkosten"),
-            (StandardFields.AVAILABLE_FROM, "📅 Verfügbar ab"),
-            (StandardFields.PROVIDER, "🏢 Anbieter"),
-            (StandardFields.FEATURES, "⭐ Besonderheiten"),
-            (StandardFields.OBJECT_ID, "🔑 Objekt-ID"),
+            (StandardFields.ADDRESS, "📍 Address"),
+            (StandardFields.DISTRICT, "🗺️ District"),
+            (StandardFields.ROOMS, "🚪 Rooms"),
+            (StandardFields.AREA, "📐 Area"),
+            (StandardFields.RENT_COLD, "💶 Cold Rent"),
+            (StandardFields.RENT_WARM, "💶 Warm Rent"),
+            (StandardFields.RENT_TOTAL, "💶 Total Rent"),
+            (StandardFields.RENT_ADDITIONAL, "💸 Additional Costs"),
+            (StandardFields.RENT_HEATING, "🔥 Heating Costs"),
+            (StandardFields.AVAILABLE_FROM, "📅 Available From"),
+            (StandardFields.PROVIDER, "🏢 Provider"),
+            (StandardFields.FEATURES, "⭐ Features"),
+            (StandardFields.OBJECT_ID, "🔑 Object ID"),
         ]
 
         # Add details in order
