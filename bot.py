@@ -457,7 +457,6 @@ class FlatMonitor:
             await self.send_error_notification(error_msg)
             return
 
-        iteration_count = 0
         while True:
             try:
                 # Check and send any buffered flats if we're in allowed hours
@@ -528,16 +527,13 @@ class FlatMonitor:
                 if two_or_more_rooms:
                     logger.info(f"✉️  Sending {len(two_or_more_rooms)} flats to user")
                     await self.send_update(two_or_more_rooms)
+                    # Save cache only when new flats are found to minimize SD card writes
+                    save_seen_flats()
                 else:
                     logger.info(f"ℹ️  No flats passed filters (all were filtered out)")
 
                 # Update the cache
                 self.current_flats = new_flats
-
-                # Save seen flats cache every 10 iterations (helps with persistence)
-                iteration_count += 1
-                if iteration_count % 10 == 0:
-                    save_seen_flats()
 
             except Exception as e:
                 error_msg = f"Error during monitoring: {str(e)}"
@@ -651,10 +647,15 @@ async def main():
                 await monitoring_task
             except asyncio.CancelledError:
                 pass
+            # Save cache on shutdown
+            logger.info("Shutting down, saving cache...")
+            save_seen_flats(force=True)
             await application.stop()
 
     except Exception as e:
         logger.error(f"Bot stopped due to error: {e}")
+        # Save cache even on error
+        save_seen_flats(force=True)
 
 
 if __name__ == "__main__":
