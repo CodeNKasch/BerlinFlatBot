@@ -88,20 +88,14 @@ class MessageFormatter:
 
     @staticmethod
     def format_flat_message(flat: FlatDetails) -> str:
-        # Start with WBS icon and enhanced title
-        icon = "🏠" if flat.wbs_required else "✅"
-
-        # Title line with link (simple approach - links work well without extra formatting)
+        # Title line with link - bold and prominent
         if flat.link:
-            message = f"{icon} [{flat.title}]({flat.link})\n"
+            message = f"🔗 <a href='{flat.link}'>{flat.title}</a>\n\n"
         else:
-            message = f"{icon} *{flat.title}*\n"
+            message = f"🔗 {flat.title}\n\n"
 
         if not flat.details:
             return message
-
-        # Add elegant separator
-        message += "━━━━━━━━━━━━━━\n"
 
         # Helper function to extract numeric value from string
         def extract_number(value_str):
@@ -119,17 +113,15 @@ class MessageFormatter:
 
         if address and not MessageFormatter._is_empty_value(str(address)):
             from urllib.parse import quote
-            # Combine district with address if available
             if district and not MessageFormatter._is_empty_value(str(district)):
                 display_address = f"{address} ({district})"
             else:
                 display_address = address
-
             encoded_address = quote(address)
             maps_link = f"https://www.google.com/maps/search/?api=1&query={encoded_address}"
-            message += f"📍 [{display_address}]({maps_link})\n"
+            message += f"  <a href='{maps_link}' >{display_address}</a>\n"
         elif district and not MessageFormatter._is_empty_value(str(district)):
-            message += f"🗺️ {district}\n"
+            message += f"  {district}\n"
 
         # Rooms + Area + Price per m² combined line
         rooms = flat.details.get(StandardFields.ROOMS)
@@ -137,10 +129,9 @@ class MessageFormatter:
 
         size_parts = []
         if rooms and not MessageFormatter._is_empty_value(str(rooms)):
-            # Extract just the number
             room_num = extract_number(rooms)
             if room_num:
-                size_parts.append(f"*{int(room_num) if room_num.is_integer() else room_num}* rooms")
+                size_parts.append(f"{int(room_num) if room_num.is_integer() else room_num} rooms")
             else:
                 size_parts.append(f"{rooms}")
 
@@ -148,7 +139,7 @@ class MessageFormatter:
         if area and not MessageFormatter._is_empty_value(str(area)):
             area_value = extract_number(area)
             if area_value:
-                size_parts.append(f"*{int(area_value) if area_value.is_integer() else area_value}* m²")
+                size_parts.append(f"{int(area_value) if area_value.is_integer() else area_value} m²")
             else:
                 size_parts.append(area)
 
@@ -161,10 +152,10 @@ class MessageFormatter:
             rent_value = extract_number(rent_for_calc)
             if rent_value and area_value > 0:
                 price_per_sqm = rent_value / area_value
-                size_parts.append(f"`{price_per_sqm:.1f} €/m²`")
+                size_parts.append(f"{price_per_sqm:.1f} €/m²")
 
         if size_parts:
-            message += f"🏠 {' · '.join(size_parts)}\n"
+            message += f"📐 {' • '.join(size_parts)}\n"
 
         # Rent display (smart combination) with monospace for prices
         rent_cold = flat.details.get(StandardFields.RENT_COLD)
@@ -173,31 +164,31 @@ class MessageFormatter:
 
         rent_parts = []
         if rent_warm and not MessageFormatter._is_empty_value(str(rent_warm)):
-            rent_parts.append(f"`{rent_warm}` warm")
+            rent_parts.append(f"{rent_warm} warm")
         elif rent_total and not MessageFormatter._is_empty_value(str(rent_total)):
-            rent_parts.append(f"`{rent_total}` total")
+            rent_parts.append(f"{rent_total} total")
 
         if rent_cold and not MessageFormatter._is_empty_value(str(rent_cold)):
-            rent_parts.append(f"`{rent_cold}` cold")
+            rent_parts.append(f"{rent_cold} cold")
 
         if rent_parts:
-            message += f"💶 {' · '.join(rent_parts)}\n"
+            message += f"💰 {' • '.join(rent_parts)}\n"
         elif rent_additional and not MessageFormatter._is_empty_value(str(rent_additional)):
-            message += f"💸 `{rent_additional}` utilities\n"
+            message += f"💰 {rent_additional} utilities\n"
 
         # Available from
         available = flat.details.get(StandardFields.AVAILABLE_FROM)
         if available and not MessageFormatter._is_empty_value(str(available)):
-            message += f"📅 From *{available}*\n"
+            message += f"📅 {available}\n"
 
         # Features
         features = flat.details.get(StandardFields.FEATURES)
         if features and not MessageFormatter._is_empty_value(str(features)):
-            # Replace commas with middle dots for cleaner look
-            features_clean = features.replace(', ', ' · ').replace(',', ' · ')
-            message += f"⭐ _{features_clean}_\n"
+            features_list = [f.strip() for f in features.replace(' · ', ', ').split(',')]
+            if features_list:
+                message += f"✨ {' • '.join(features_list)}\n"
 
-        # Provider + Object ID combined with monospace for ID
+        # Provider + Object ID combined
         provider = flat.details.get(StandardFields.PROVIDER)
         object_id = flat.details.get(StandardFields.OBJECT_ID)
 
@@ -205,49 +196,47 @@ class MessageFormatter:
         if provider and not MessageFormatter._is_empty_value(str(provider)):
             provider_parts.append(provider)
         if object_id and not MessageFormatter._is_empty_value(str(object_id)):
-            provider_parts.append(f"ID `{object_id}`")
+            provider_parts.append(f"ID {object_id}")
 
         if provider_parts:
-            message += f"🏢 {' · '.join(provider_parts)}\n"
+            message += f"🏢 {' • '.join(provider_parts)}\n"
 
         return message
 
     @staticmethod
     def format_help_message() -> str:
         return (
-            "🏠 *Berlin Flat Monitor*\n\n"
-            "I monitor multiple housing websites for new flats and notify you when they appear.\n\n"
-            "*Commands:*\n"
-            "• /list [scraper] - Show latest flats (optionally filter by scraper)\n"
-            "• /help - Show this help\n"
-            "• /status - Show website status\n"
-            "• /test - Test all scrapers\n"
-            "• /clear - Clear the flat cache\n\n"
-            "*Available scrapers:*\n"
-            "• InBerlinWohnen\n"
-            "• Degewo\n"
-            "• Gesobau\n"
-            "• Gewobag\n"
-            "• Stadt und Land"
+            "🏠 <b>Berlin Flat Monitor</b>\n\n"
+            "<b>Commands:</b>\n"
+            "`/list [scraper]` – Show latest flats\n"
+            "`/status` – Check website status\n"
+            "`/test` – Test all scrapers\n"
+            "`/clear` – Clear cache\n"
+            "`/help` – Show this help\n\n"
+            "<b>Providers:</b> InBerlinWohnen • Degewo • Gesobau • Gewobag • Stadt und Land"
         )
 
     @staticmethod
     def format_status_message(website_statuses: Dict[str, str]) -> str:
-        message = "🌐 *Website Status*\n\n"
+        message = "🌐 <b>Website Status</b>\n\n"
+
         for website, status in website_statuses.items():
             status_lower = status.lower()
             if "not checked yet" in status_lower:
-                message += f"*{website}*\n_⏳ {status}_\n\n"
+                icon = "⏳"
             elif (
                 "unavailable" in status_lower
                 or "error" in status_lower
                 or "timeout" in status_lower
             ):
-                message += f"*{website}*\n_❌ {status}_\n\n"
+                icon = "❌"
             elif "high traffic" in status_lower:
-                message += f"*{website}*\n_🚧 {status}_\n\n"
+                icon = "🚧"
             else:
-                message += f"*{website}*\n_✅ {status}_\n\n"
+                icon = "✅"
+
+            message += f"{icon} {website}: <i>{status}</i>\n"
+
         return message
 
 
@@ -276,22 +265,17 @@ class FlatMonitor:
         }
 
     async def send_welcome(self):
+        welcome_text = (
+            "🏠 <b>Berlin Flat Monitor Started</b>\n\n"
+            f"Monitoring {len(self.scrapers)} provider(s) every {self.config.monitor_interval}s\n"
+            "🎯 2+ rooms • No WBS required\n"
+            "🕐 Notifications: 8 AM - 8 PM\n\n"
+        )
         try:
             await self.bot.send_message(
                 chat_id=self.chat_id,
-                text="🏠 *Berlin Flat Monitor Started*\n\n"
-                "I'm now actively monitoring Berlin housing websites for new apartments that match your criteria:\n"
-                "✅ 2+ rooms\n"
-                "✅ No WBS required\n\n"
-                f"📊 *Monitoring {len(self.scrapers)} housing website(s)*\n"
-                f"🔄 *Check interval: {self.config.monitor_interval} seconds*\n"
-                "🕐 *Notifications: 8 AM - 8 PM*\n\n"
-                "*Quick Commands:*\n"
-                "• /list - Show current available flats\n"
-                "• /status - Check website availability\n"
-                "• /help - View all commands\n\n"
-                "_You'll be notified instantly when matching apartments appear!_",
-                parse_mode="Markdown",
+                text=welcome_text,
+                parse_mode="HTML",
             )
             logger.info(f"Welcome message sent to chat {self.chat_id}")
         except TelegramError as e:
@@ -305,19 +289,8 @@ class FlatMonitor:
                 try:
                     await self.bot.send_message(
                         chat_id=self.chat_id,
-                        text="🏠 *Berlin Flat Monitor Started*\n\n"
-                        "I'm now actively monitoring Berlin housing websites for new apartments that match your criteria:\n"
-                        "✅ 2+ rooms\n"
-                        "✅ No WBS required\n\n"
-                        f"📊 *Monitoring {len(self.scrapers)} housing website(s)*\n"
-                        f"🔄 *Check interval: {self.config.monitor_interval} seconds*\n"
-                        "🕐 *Notifications: 8 AM - 8 PM*\n\n"
-                        "*Quick Commands:*\n"
-                        "• /list - Show current available flats\n"
-                        "• /status - Check website availability\n"
-                        "• /help - View all commands\n\n"
-                        "_You'll be notified instantly when matching apartments appear!_",
-                        parse_mode="Markdown",
+                        text=welcome_text,
+                        parse_mode="HTML",
                     )
                     logger.info(f"Welcome message sent to new chat {self.chat_id}")
                     return
@@ -337,7 +310,7 @@ class FlatMonitor:
         try:
             await update.message.reply_text(
                 text=self.formatter.format_help_message(),
-                parse_mode="Markdown",
+                parse_mode="HTML",
             )
             logger.info("Help message sent")
         except TelegramError as e:
@@ -356,7 +329,7 @@ class FlatMonitor:
             status_message = self.formatter.format_status_message(self.website_statuses)
             await update.message.reply_text(
                 text=status_message,
-                parse_mode="Markdown",
+                parse_mode="HTML",
             )
             logger.info("Status message sent")
         except TelegramError as e:
@@ -404,7 +377,7 @@ class FlatMonitor:
                 await self.bot.send_message(
                     chat_id=self.chat_id,
                     text=message,
-                    parse_mode="Markdown",
+                    parse_mode="HTML",
                     disable_web_page_preview=True,
                 )
         except TelegramError as e:
@@ -429,7 +402,7 @@ class FlatMonitor:
                     await self.bot.send_message(
                         chat_id=self.chat_id,
                         text=message,
-                        parse_mode="Markdown",
+                        parse_mode="HTML",
                         disable_web_page_preview=True,
                     )
                     sent_count += 1
@@ -527,7 +500,7 @@ class FlatMonitor:
                 message = self.formatter.format_flat_message(flat)
                 await update.message.reply_text(
                     text=message,
-                    parse_mode="Markdown",
+                    parse_mode="HTML",
                     disable_web_page_preview=True,
                 )
             logger.info(f"Sent {len(flats)} flats")
@@ -538,8 +511,8 @@ class FlatMonitor:
         try:
             await self.bot.send_message(
                 chat_id=self.private_chat_id,
-                text=f"⚠️ *Error in Flat Monitor*\n\n{error_message}",
-                parse_mode="Markdown",
+                text=f"⚠️ <b>Error in Flat Monitor</b>\n\n{error_message}",
+                parse_mode="HTML",
             )
             logger.info(
                 f"Error notification sent to private chat {self.private_chat_id}"
@@ -657,26 +630,26 @@ class FlatMonitor:
             return
 
         reset_seen_flats()
-        message = "🏠 *Test Results*\n\n"
+        message = "🏠 <b>Test Results</b>\n\n"
 
         for scraper in self.scrapers:
             try:
                 flats = await scraper.fetch_flats()
                 if flats:
                     flat = flats[0]
-                    message += f"*{scraper.__class__.__name__}*\n"
+                    message += f"<b>{scraper.__class__.__name__}</b>\n"
                     message += self.formatter.format_flat_message(flat)
                     message += "\n"
                 else:
-                    message += f"*{scraper.__class__.__name__}*\n_No flats found_\n\n"
+                    message += f"<b>{scraper.__class__.__name__}</b>\n_No flats found_\n\n"
             except Exception as e:
-                message += f"*{scraper.__class__.__name__}*\n_Error: {str(e)}_\n\n"
+                message += f"<b>{scraper.__class__.__name__}</b>\n_Error: {str(e)}_\n\n"
                 logger.error(f"Test failed for {scraper.__class__.__name__}: {e}")
 
         try:
             await update.message.reply_text(
                 text=message,
-                parse_mode="Markdown",
+                parse_mode="HTML",
                 disable_web_page_preview=True
             )
         except TelegramError as e:
