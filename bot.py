@@ -109,9 +109,7 @@ class MessageFormatter:
             (StandardFields.RENT_ADDITIONAL, "💸 Additional Costs"),
             (StandardFields.RENT_HEATING, "🔥 Heating Costs"),
             (StandardFields.AVAILABLE_FROM, "📅 Available From"),
-            (StandardFields.PROVIDER, "🏢 Provider"),
             (StandardFields.FEATURES, "⭐ Features"),
-            (StandardFields.OBJECT_ID, "🔑 Object ID"),
         ]
 
         # Add details in order
@@ -120,6 +118,18 @@ class MessageFormatter:
                 value = flat.details.get(field_key)
                 if value and not MessageFormatter._is_empty_value(str(value)):
                     message += f"{field_label}: {value}\n"
+
+            # Special handling for Provider + Object ID on one line
+            provider = flat.details.get(StandardFields.PROVIDER)
+            object_id = flat.details.get(StandardFields.OBJECT_ID)
+
+            if provider and not MessageFormatter._is_empty_value(str(provider)):
+                if object_id and not MessageFormatter._is_empty_value(str(object_id)):
+                    message += f"🏢 Provider: {provider} ({object_id})\n"
+                else:
+                    message += f"🏢 Provider: {provider}\n"
+            elif object_id and not MessageFormatter._is_empty_value(str(object_id)):
+                message += f"🔑 Object ID: {object_id}\n"
 
         return message
 
