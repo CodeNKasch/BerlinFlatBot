@@ -17,7 +17,7 @@ from telegram.ext import (
 )
 
 from scrapers import StadtUndLandScraper  # Import the new scraper
-from scrapers import reset_seen_flats  # Add this import
+from scrapers import reset_seen_flats, load_seen_flats, save_seen_flats  # Add these imports
 from scrapers import (
     DegewoScraper,
     FlatDetails,
@@ -309,8 +309,13 @@ class FlatMonitor:
         current_hour = datetime.now().hour
         if 8 <= current_hour < 20:
             logger.info(f"Sending {len(self.buffered_flats)} buffered flats")
+            # Store buffer locally and clear immediately to prevent re-sending on failure
+            flats_to_send = self.buffered_flats.copy()
+            self.buffered_flats.clear()
+
             try:
-                for flat in self.buffered_flats:
+                sent_count = 0
+                for flat in flats_to_send:
                     message = self.formatter.format_flat_message(flat)
                     await self.bot.send_message(
                         chat_id=self.chat_id,
@@ -318,9 +323,10 @@ class FlatMonitor:
                         parse_mode="Markdown",
                         disable_web_page_preview=True,
                     )
-                self.buffered_flats.clear()
+                    sent_count += 1
+                logger.info(f"Successfully sent {sent_count} buffered flats")
             except TelegramError as e:
-                logger.error(f"Failed to send buffered flats: {e}")
+                logger.error(f"Failed to send buffered flats after sending {sent_count}/{len(flats_to_send)}: {e}")
 
     async def handle_list_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -435,6 +441,10 @@ class FlatMonitor:
 
     async def monitor(self):
         logger.info("Starting monitoring loop...")
+
+        # Load seen flats cache to prevent duplicates across restarts
+        load_seen_flats()
+
         await self.send_welcome()
 
         try:
@@ -447,6 +457,7 @@ class FlatMonitor:
             await self.send_error_notification(error_msg)
             return
 
+        iteration_count = 0
         while True:
             try:
                 # Check and send any buffered flats if we're in allowed hours
@@ -523,6 +534,11 @@ class FlatMonitor:
                 # Update the cache
                 self.current_flats = new_flats
 
+                # Save seen flats cache every 10 iterations (helps with persistence)
+                iteration_count += 1
+                if iteration_count % 10 == 0:
+                    save_seen_flats()
+
             except Exception as e:
                 error_msg = f"Error during monitoring: {str(e)}"
                 logger.error(error_msg)
@@ -583,8 +599,10 @@ class FlatMonitor:
 
         try:
             self.current_flats = []
-            await update.message.reply_text("✅ Flat cache cleared successfully!")
-            logger.info("Flat cache cleared")
+            self.buffered_flats = []
+            reset_seen_flats()
+            await update.message.reply_text("✅ All caches cleared successfully (current flats, buffered flats, and seen flats)!")
+            logger.info("All caches cleared (current, buffered, and seen flats)")
         except TelegramError as e:
             logger.error(f"Failed to send clear confirmation: {e}")
             await self.send_error_notification(
