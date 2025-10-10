@@ -16,6 +16,23 @@ from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
+# Standard field names for FlatDetails.details dictionary
+# All scrapers should use these canonical field names
+class StandardFields:
+    ADDRESS = "address"              # Full address (street, number, postal code, city)
+    DISTRICT = "district"            # District/Region/Bezirk
+    ROOMS = "rooms"                  # Number of rooms (Zimmer/Zimmeranzahl)
+    AREA = "area"                    # Living area in m² (Wohnfläche/Fläche)
+    RENT_COLD = "rent_cold"          # Cold rent (Kaltmiete)
+    RENT_WARM = "rent_warm"          # Warm rent (Warmmiete/Gesamtmiete)
+    RENT_ADDITIONAL = "rent_additional"  # Additional costs (Nebenkosten)
+    RENT_HEATING = "rent_heating"    # Heating costs (Heizkosten)
+    RENT_TOTAL = "rent_total"        # Total rent (if different from warm)
+    AVAILABLE_FROM = "available_from"  # Availability date (Verfügbar ab/Frei ab)
+    PROVIDER = "provider"            # Housing company/provider (Anbieter)
+    OBJECT_ID = "object_id"          # Object/apartment ID (Objekt-ID)
+    FEATURES = "features"            # Special features/amenities (Tags/Besondere Eigenschaften)
+
 # Global session for connection pooling
 _global_session = None
 # Global set to track seen flat IDs
@@ -554,27 +571,27 @@ class InBerlinWohnenScraper(BaseScraper):
                     address_parts.append(address_data["district"])
 
             if address_parts:
-                details["Adresse"] = " ".join(address_parts)
+                details[StandardFields.ADDRESS] = " ".join(address_parts)
 
             # Extract apartment specifications
             if "rooms" in apartment_data:
-                details["Zimmer"] = str(apartment_data["rooms"]).replace(".", ",")
+                details[StandardFields.ROOMS] = str(apartment_data["rooms"]).replace(".", ",")
             if "area" in apartment_data:
-                details["Wohnfläche"] = (
+                details[StandardFields.AREA] = (
                     f"{str(apartment_data['area']).replace('.', ',')} m²"
                 )
             if "rentNet" in apartment_data:
-                details["Kaltmiete"] = (
+                details[StandardFields.RENT_COLD] = (
                     f"{str(apartment_data['rentNet']).replace('.', ',')} €"
                 )
             if "rentTotal" in apartment_data:
-                details["Warmmiete"] = (
+                details[StandardFields.RENT_WARM] = (
                     f"{str(apartment_data['rentTotal']).replace('.', ',')} €"
                 )
 
             # Extract availability
             if "availableFrom" in apartment_data:
-                details["Verfügbar ab"] = apartment_data["availableFrom"]
+                details[StandardFields.AVAILABLE_FROM] = apartment_data["availableFrom"]
 
             # Extract company information
             if "company" in apartment_data:
@@ -583,13 +600,13 @@ class InBerlinWohnenScraper(BaseScraper):
                     # Extract company name from the company data structure
                     company_info = company_data[0]
                     if isinstance(company_info, dict) and "name" in company_info:
-                        details["Anbieter"] = company_info["name"].strip()
+                        details[StandardFields.PROVIDER] = company_info["name"].strip()
                 elif isinstance(company_data, str):
-                    details["Anbieter"] = company_data
+                    details[StandardFields.PROVIDER] = company_data
 
             # Add object ID if available
             if object_id:
-                details["Objekt-ID"] = object_id
+                details[StandardFields.OBJECT_ID] = object_id
 
             # Check for WBS requirement
             wbs_sources = [title]
@@ -758,17 +775,17 @@ class InBerlinWohnenScraper(BaseScraper):
                     re.IGNORECASE,
                 )
                 if room_match:
-                    details["Zimmer"] = room_match.group(1)
+                    details[StandardFields.ROOMS] = room_match.group(1)
 
                 # Area
                 area_match = re.search(r"(\d+(?:[.,]\d+)?)\s*m²", text_content)
                 if area_match:
-                    details["Wohnfläche"] = f"{area_match.group(1)} m²"
+                    details[StandardFields.AREA] = f"{area_match.group(1)} m²"
 
                 # Price
                 price_match = re.search(r"(\d+(?:[.,]\d+)?)\s*€", text_content)
                 if price_match:
-                    details["Miete"] = f"{price_match.group(1)} €"
+                    details[StandardFields.RENT_WARM] = f"{price_match.group(1)} €"
 
             # Check for WBS requirement - check title, details, and full element text
             wbs_sources = [title_text, flat_element.get_text()]
@@ -858,27 +875,27 @@ class DegewoScraper(BaseScraper):
             details = {}
             address_element = flat_element.find("span", class_="article__meta")
             if address_element:
-                details["Adresse"] = address_element.text.strip()
+                details[StandardFields.ADDRESS] = address_element.text.strip()
 
             # Extract tags (e.g., Balkon/Loggia, Aufzug)
             tags = flat_element.find_all("li", class_="article__tags-item")
             if tags:
-                details["Tags"] = ", ".join(tag.text.strip() for tag in tags)
+                details[StandardFields.FEATURES] = ", ".join(tag.text.strip() for tag in tags)
 
             # Extract properties (e.g., Zimmer, Wohnfläche, Verfügbarkeit)
             properties = flat_element.find_all("li", class_="article__properties-item")
             for prop in properties:
                 svg = prop.find("svg")
                 if svg and "i-room" in svg.get("xlink:href", ""):
-                    details["Zimmeranzahl"] = prop.find(
+                    details[StandardFields.ROOMS] = prop.find(
                         "span", class_="text"
                     ).text.strip()
                 elif svg and "i-squares" in svg.get("xlink:href", ""):
-                    details["Wohnfläche"] = prop.find(
+                    details[StandardFields.AREA] = prop.find(
                         "span", class_="text"
                     ).text.strip()
                 elif svg and "i-calendar2" in svg.get("xlink:href", ""):
-                    details["Verfügbarkeit"] = prop.find(
+                    details[StandardFields.AVAILABLE_FROM] = prop.find(
                         "span", class_="text"
                     ).text.strip()
 
@@ -887,35 +904,7 @@ class DegewoScraper(BaseScraper):
             if price_element:
                 price_text = price_element.find("span", class_="price")
                 if price_text:
-                    details["Warmmiete"] = price_text.text.strip()
-
-            # Determine if WBS is required - check title and all details
-            wbs_sources = [title_text] + [str(v) for v in details.values() if v]
-            wbs_required = any(check_wbs_required(source) for source in wbs_sources)
-
-            # Extract properties (e.g., Zimmer, Wohnfläche, Verfügbarkeit)
-            properties = flat_element.find_all("li", class_="article__properties-item")
-            for prop in properties:
-                svg = prop.find("svg")
-                if svg and "i-room" in svg.get("xlink:href", ""):
-                    details["Zimmeranzahl"] = prop.find(
-                        "span", class_="text"
-                    ).text.strip()
-                elif svg and "i-squares" in svg.get("xlink:href", ""):
-                    details["Wohnfläche"] = prop.find(
-                        "span", class_="text"
-                    ).text.strip()
-                elif svg and "i-calendar2" in svg.get("xlink:href", ""):
-                    details["Verfügbarkeit"] = prop.find(
-                        "span", class_="text"
-                    ).text.strip()
-
-            # Extract price
-            price_element = flat_element.find("div", class_="article__price-tag")
-            if price_element:
-                price_text = price_element.find("span", class_="price")
-                if price_text:
-                    details["Warmmiete"] = price_text.text.strip()
+                    details[StandardFields.RENT_WARM] = price_text.text.strip()
 
             # Determine if WBS is required - check title and all details
             wbs_sources = [title_text] + [str(v) for v in details.values() if v]
@@ -998,21 +987,21 @@ class GesobauScraper(BaseScraper):
             # Extract address
             address_element = flat_element.find("p", class_="basicTeaser__text")
             if address_element:
-                details["Adresse"] = address_element.text.strip()
+                details[StandardFields.ADDRESS] = address_element.text.strip()
 
             # Extract region
             region_element = flat_element.find("span", class_="meta__region")
             if region_element:
-                details["Region"] = region_element.text.strip()
+                details[StandardFields.DISTRICT] = region_element.text.strip()
 
             # Extract apartment info (rooms, size, price)
             info_element = flat_element.find("div", class_="apartment__info")
             if info_element:
                 info_spans = info_element.find_all("span")
                 if len(info_spans) >= 3:
-                    details["Zimmeranzahl"] = info_spans[0].text.strip()
-                    details["Wohnfläche"] = info_spans[1].text.strip()
-                    details["Warmmiete"] = info_spans[2].text.strip()
+                    details[StandardFields.ROOMS] = info_spans[0].text.strip()
+                    details[StandardFields.AREA] = info_spans[1].text.strip()
+                    details[StandardFields.RENT_WARM] = info_spans[2].text.strip()
 
             # Check for WBS requirement - check title and all details
             wbs_sources = [title_text] + [str(v) for v in details.values() if v]
@@ -1092,29 +1081,29 @@ class GewobagScraper(BaseScraper):
                 # Extract region
                 region_row = info_table.find("tr", class_="angebot-region")
                 if region_row:
-                    details["Region"] = region_row.find("td").text.strip()
+                    details[StandardFields.DISTRICT] = region_row.find("td").text.strip()
 
                 # Extract address
                 address_row = info_table.find("tr", class_="angebot-address")
                 if address_row:
                     address_element = address_row.find("address")
                     if address_element:
-                        details["Adresse"] = address_element.text.strip()
+                        details[StandardFields.ADDRESS] = address_element.text.strip()
 
                 # Extract area info
                 area_row = info_table.find("tr", class_="angebot-area")
                 if area_row:
-                    details["Fläche"] = area_row.find("td").text.strip()
+                    details[StandardFields.AREA] = area_row.find("td").text.strip()
 
                 # Extract availability
                 availability_row = info_table.find("tr", class_="availability")
                 if availability_row:
-                    details["Frei ab"] = availability_row.find("td").text.strip()
+                    details[StandardFields.AVAILABLE_FROM] = availability_row.find("td").text.strip()
 
                 # Extract costs
                 kosten_row = info_table.find("tr", class_="angebot-kosten")
                 if kosten_row:
-                    details["Gesamtmiete"] = kosten_row.find("td").text.strip()
+                    details[StandardFields.RENT_WARM] = kosten_row.find("td").text.strip()
 
                 # Extract characteristics
                 characteristics_row = info_table.find(
@@ -1125,7 +1114,7 @@ class GewobagScraper(BaseScraper):
                     for li in characteristics_row.find_all("li"):
                         characteristics.append(li.text.strip())
                     if characteristics:
-                        details["Besondere Eigenschaften"] = ", ".join(characteristics)
+                        details[StandardFields.FEATURES] = ", ".join(characteristics)
 
             # Check for WBS requirement - check title and all details
             wbs_sources = [title_text] + [str(v) for v in details.values() if v]
@@ -1239,13 +1228,13 @@ class StadtUndLandScraper(BaseScraper):
             # Optimize details dictionary construction
             costs_data = flat_data.get("costs", {})
             details = {
-                "Adresse": address,
-                "Zimmeranzahl": str(details_data.get("rooms", "")),
-                "Wohnfläche": f"{details_data.get('livingSpace', '')} m²",
-                "Kaltmiete": f"{costs_data.get('coldRent', '')} €",
-                "Nebenkosten": f"{costs_data.get('additionalCosts', '')} €",
-                "Heizkosten": f"{costs_data.get('heatingCosts', '')} €",
-                "Gesamtmiete": f"{costs_data.get('totalRent', '')} €",
+                StandardFields.ADDRESS: address,
+                StandardFields.ROOMS: str(details_data.get("rooms", "")),
+                StandardFields.AREA: f"{details_data.get('livingSpace', '')} m²",
+                StandardFields.RENT_COLD: f"{costs_data.get('coldRent', '')} €",
+                StandardFields.RENT_ADDITIONAL: f"{costs_data.get('additionalCosts', '')} €",
+                StandardFields.RENT_HEATING: f"{costs_data.get('heatingCosts', '')} €",
+                StandardFields.RENT_TOTAL: f"{costs_data.get('totalRent', '')} €",
             }
 
             # Optimize special features list
@@ -1257,7 +1246,7 @@ class StadtUndLandScraper(BaseScraper):
             if details_data.get("barrierFree"):
                 special_features.append("Barrierefrei")
             if special_features:
-                details["Besondere Eigenschaften"] = ", ".join(special_features)
+                details[StandardFields.FEATURES] = ", ".join(special_features)
 
             wbs_sources = [title] + [str(v) for v in details.values() if v]
             wbs_required = any(check_wbs_required(source) for source in wbs_sources)
