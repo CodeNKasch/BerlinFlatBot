@@ -96,11 +96,6 @@ class MessageFormatter:
                         if str_value:
                             message += f"• {key}: {str_value}\n"
 
-        # Add scraper name as link
-        if flat.link:
-            message += f"[{flat.source}]({flat.link})\n"
-        else:
-            message += f"{flat.source}\n"
         return message
 
     @staticmethod
