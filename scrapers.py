@@ -588,21 +588,25 @@ class InBerlinWohnenScraper(BaseScraper):
 
             # Extract rent information - try various field names
             if "rentNet" in apartment_data:
+                rent_value = float(apartment_data['rentNet'])
                 details[StandardFields.RENT_COLD] = (
-                    f"{str(apartment_data['rentNet']).replace('.', ',')} €"
+                    f"{rent_value:.2f}".replace('.', ',') + " €"
                 )
             if "rentTotal" in apartment_data:
+                rent_value = float(apartment_data['rentTotal'])
                 details[StandardFields.RENT_WARM] = (
-                    f"{str(apartment_data['rentTotal']).replace('.', ',')} €"
+                    f"{rent_value:.2f}".replace('.', ',') + " €"
                 )
             # Also check for alternative field names
             if "rentGross" in apartment_data:
+                rent_value = float(apartment_data['rentGross'])
                 details[StandardFields.RENT_WARM] = (
-                    f"{str(apartment_data['rentGross']).replace('.', ',')} €"
+                    f"{rent_value:.2f}".replace('.', ',') + " €"
                 )
             if "additionalCosts" in apartment_data:
+                rent_value = float(apartment_data['additionalCosts'])
                 details[StandardFields.RENT_ADDITIONAL] = (
-                    f"{str(apartment_data['additionalCosts']).replace('.', ',')} €"
+                    f"{rent_value:.2f}".replace('.', ',') + " €"
                 )
 
             # Extract availability
