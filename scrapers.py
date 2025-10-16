@@ -534,10 +534,12 @@ class InBerlinWohnenScraper(BaseScraper):
         """Parse apartment data from Livewire JSON format."""
         try:
             # Extract basic information
-            flat_id = str(apartment_data.get("id", ""))
             title = apartment_data.get("title", "")
             object_id = apartment_data.get("objectId", "")
             deeplink = apartment_data.get("deeplink", "")
+
+            # Use objectId as the unique identifier
+            flat_id = object_id
 
             if not flat_id or not title:
                 return None
@@ -586,28 +588,41 @@ class InBerlinWohnenScraper(BaseScraper):
             if rent_fields:
                 logger.debug(f"Rent fields found for flat {flat_id}: {rent_fields}")
 
+            # Helper function to parse and format rent values in German format
+            def format_rent(value):
+                """Parse rent value and format in German style (1.234,56 €)."""
+                # Parse the value first
+                if isinstance(value, (int, float)):
+                    amount = float(value)
+                else:
+                    # If it's a string, clean it: remove dots (thousand separator) and replace comma with dot
+                    value_str = str(value).replace('.', '').replace(',', '.')
+                    amount = float(value_str)
+
+                # Format with German locale style: thousand separator (.) and decimal comma (,)
+                formatted = f"{amount:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                return f"{formatted} €"
+
             # Extract rent information - try various field names
             if "rentNet" in apartment_data:
-                details[StandardFields.RENT_COLD] = (
-                    f"{str(apartment_data['rentNet']).replace('.', ',')} €"
-                )
+                details[StandardFields.RENT_COLD] = format_rent(apartment_data['rentNet'])
             if "rentTotal" in apartment_data:
-                details[StandardFields.RENT_WARM] = (
-                    f"{str(apartment_data['rentTotal']).replace('.', ',')} €"
-                )
+                details[StandardFields.RENT_WARM] = format_rent(apartment_data['rentTotal'])
             # Also check for alternative field names
             if "rentGross" in apartment_data:
-                details[StandardFields.RENT_WARM] = (
-                    f"{str(apartment_data['rentGross']).replace('.', ',')} €"
-                )
+                details[StandardFields.RENT_WARM] = format_rent(apartment_data['rentGross'])
             if "additionalCosts" in apartment_data:
-                details[StandardFields.RENT_ADDITIONAL] = (
-                    f"{str(apartment_data['additionalCosts']).replace('.', ',')} €"
-                )
+                details[StandardFields.RENT_ADDITIONAL] = format_rent(apartment_data['additionalCosts'])
 
-            # Extract availability
-            if "availableFrom" in apartment_data:
-                details[StandardFields.AVAILABLE_FROM] = apartment_data["availableFrom"]
+            # Extract availability - try multiple field names
+            availability_fields = ["occupationDate", "availableFrom", "available", "freeFrom", "availabilityDate", "moveInDate", "vacancy"]
+            for field in availability_fields:
+                if field in apartment_data and apartment_data[field]:
+                    avail_value = str(apartment_data[field]).strip()
+                    # Only set if not empty or placeholder values
+                    if avail_value and avail_value.lower() not in ['null', 'none', '', 'n/a']:
+                        details[StandardFields.AVAILABLE_FROM] = avail_value
+                        break
 
             # Extract company information
             if "company" in apartment_data:

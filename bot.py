@@ -88,11 +88,11 @@ class MessageFormatter:
 
     @staticmethod
     def format_flat_message(flat: FlatDetails) -> str:
-        # Title line with link - bold and prominent
+        # Title line with link - bold and prominent using <b> tag (Telegram doesn't support <h1>)
         if flat.link:
-            message = f"🔗 <a href='{flat.link}'>{flat.title}</a>\n\n"
+            message = f"<b>🔗 <a href='{flat.link}'>{flat.title}</a></b>\n\n"
         else:
-            message = f"🔗 {flat.title}\n\n"
+            message = f"<b>🔗 {flat.title}</b>\n\n"
 
         if not flat.details:
             return message
