@@ -534,10 +534,12 @@ class InBerlinWohnenScraper(BaseScraper):
         """Parse apartment data from Livewire JSON format."""
         try:
             # Extract basic information
-            flat_id = str(apartment_data.get("id", ""))
             title = apartment_data.get("title", "")
             object_id = apartment_data.get("objectId", "")
             deeplink = apartment_data.get("deeplink", "")
+
+            # Use objectId as the unique identifier
+            flat_id = object_id
 
             if not flat_id or not title:
                 return None
