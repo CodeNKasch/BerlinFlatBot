@@ -17,7 +17,7 @@ from telegram.ext import (
 )
 
 from scrapers import StadtUndLandScraper  # Import the new scraper
-from scrapers import reset_seen_flats, load_seen_flats, save_seen_flats  # Add these imports
+from scrapers import reset_seen_flats, load_seen_flats, save_seen_flats, close_session, mark_flats_as_seen  # Add these imports
 from scrapers import (
     DegewoScraper,
     FlatDetails,
@@ -535,15 +535,9 @@ class FlatMonitor:
 
         await self.send_welcome()
 
-        try:
-            # Initial fetch
-            self.current_flats = await self.fetch_all_flats()
-            logger.info(f"Initialized with {len(self.current_flats)} existing flats")
-        except Exception as e:
-            error_msg = f"Failed to initialize flats: {str(e)}"
-            logger.error(error_msg)
-            await self.send_error_notification(error_msg)
-            return
+        # Don't do initial fetch - let the first loop iteration handle it
+        # This ensures we check for new flats on startup too
+        self.current_flats = []
 
         while True:
             try:
@@ -610,6 +604,8 @@ class FlatMonitor:
                 if two_or_more_rooms:
                     logger.info(f"✉️  Sending {len(two_or_more_rooms)} flats to user")
                     await self.send_update(two_or_more_rooms)
+                    # Mark these flats as seen in the global cache after successful notification
+                    mark_flats_as_seen(two_or_more_rooms)
                     # Save cache only when new flats are found to minimize SD card writes
                     save_seen_flats()
                 else:
@@ -734,12 +730,16 @@ async def main():
             # Save cache on shutdown
             logger.info("Shutting down, saving cache...")
             save_seen_flats(force=True)
+            # Close aiohttp session
+            await close_session()
             await application.stop()
 
     except Exception as e:
         logger.error(f"Bot stopped due to error: {e}")
         # Save cache even on error
         save_seen_flats(force=True)
+        # Close aiohttp session
+        await close_session()
 
 
 if __name__ == "__main__":
@@ -747,5 +747,7 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Bot stopped by user")
+        asyncio.run(close_session())
     except Exception as e:
         logger.error(f"Bot stopped due to error: {e}")
+        asyncio.run(close_session())

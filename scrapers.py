@@ -140,6 +140,15 @@ def reset_seen_flats():
             logger.error(f"Failed to delete seen flats cache file: {e}")
 
 
+def mark_flats_as_seen(flats: List['FlatDetails']):
+    """Mark a list of flats as seen in the global cache."""
+    global _seen_flat_ids, _cache_modified
+    for flat in flats:
+        if flat.id not in _seen_flat_ids:
+            _seen_flat_ids.add(flat.id)
+            _cache_modified = True
+
+
 def check_wbs_required(text: str) -> bool:
     """
     Check if WBS is required based on text content.
@@ -307,8 +316,9 @@ class BaseScraper:
         gc.collect()
 
     def _filter_duplicates(self, flats: List[FlatDetails]) -> List[FlatDetails]:
-        """Filter out duplicate flats based on their IDs."""
-        # First, remove duplicates within this batch using a local set
+        """Filter out duplicate flats based on their IDs within this batch only."""
+        # Remove duplicates within this batch using a local set
+        # Do NOT use global _seen_flat_ids here - that's handled by the bot
         seen_in_batch = set()
         unique_flats = []
 
@@ -319,8 +329,7 @@ class BaseScraper:
             else:
                 logger.debug(f"Filtered duplicate within batch: {flat.id} - {flat.title}")
 
-        # Then filter against global seen flats
-        return [flat for flat in unique_flats if not flat.is_duplicate()]
+        return unique_flats
 
 
 class InBerlinWohnenScraper(BaseScraper):
