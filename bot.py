@@ -29,9 +29,13 @@ from scrapers import (
     WebsiteUnavailableError,
 )
 
-# Configure logging
+# Configure logging - output to stdout only (no file) to minimize SD card writes
+# When running as systemd service, logs will be captured by journald
+# For development, logs will appear in console
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+    handlers=[logging.StreamHandler()]  # Only log to stdout, not to files
 )
 logger = logging.getLogger(__name__)
 
@@ -606,8 +610,9 @@ class FlatMonitor:
                     await self.send_update(two_or_more_rooms)
                     # Mark these flats as seen in the global cache after successful notification
                     mark_flats_as_seen(two_or_more_rooms)
-                    # Save cache only when new flats are found to minimize SD card writes
-                    save_seen_flats()
+                    # Cache will auto-save when threshold is reached (see scrapers.py)
+                    # Only force-save on shutdown to minimize RAM disk writes
+                    save_seen_flats()  # This will only write if threshold reached
                 else:
                     logger.info(f"ℹ️  No flats passed filters (all were filtered out)")
 
