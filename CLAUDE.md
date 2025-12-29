@@ -41,18 +41,31 @@ sudo systemctl start telegram.service
 - Telegram command handlers: `/help`, `/status`, `/list`, `/test`, `/clear`
 - Background monitoring loop that checks all scrapers periodically
 
-**scrapers.py** - Web scraping infrastructure with:
+**scrapers/** - Modular web scraping package with:
 
-- `BaseScraper` - Abstract base class for all housing website scrapers
-- Individual scrapers for each housing website:
-  - `InBerlinWohnenScraper` - InBerlinWohnen website
-  - `DegewoScraper` - Degewo housing website
-  - `GesobauScraper` - Gesobau housing website
-  - `GewobagScraper` - Gewobag housing website
-  - `StadtUndLandScraper` - Stadt und Land website
-- `FlatDetails` dataclass - Standardized apartment data structure
-- Global session management with connection pooling
-- Error handling with `WebsiteUnavailableError` and `HighTrafficError`
+- **base.py** - Core abstractions:
+  - `BaseScraper` - Abstract base class for all housing website scrapers
+  - `FlatDetails` dataclass - Standardized apartment data structure
+  - `StandardFields` - Canonical field names for apartment attributes
+  - Exception classes: `WebsiteUnavailableError`, `HighTrafficError`, `ScraperError`
+  - `check_wbs_required()` - WBS requirement detection utility
+
+- **cache.py** - Cache management:
+  - RAM-based cache for seen apartments (`/dev/shm`)
+  - Batched write optimization (every 10 new flats)
+  - Functions: `load_seen_flats()`, `save_seen_flats()`, `reset_seen_flats()`, `mark_flats_as_seen()`
+
+- **session.py** - HTTP session management:
+  - Global `aiohttp` session with connection pooling
+  - Optimized TCP connector settings
+  - Functions: `get_session()`, `close_session()`
+
+- **Individual scrapers** (one file per website):
+  - `inberlin.py` - InBerlinWohnen website scraper
+  - `degewo.py` - Degewo housing website scraper
+  - `gesobau.py` - Gesobau housing website scraper
+  - `gewobag.py` - Gewobag housing website scraper
+  - `stadtundland.py` - Stadt und Land website scraper
 
 ### Key Design Patterns
 
@@ -86,7 +99,20 @@ sudo systemctl start telegram.service
 
 ## Configuration Notes
 
-The bot caches seen apartment IDs in `flats_cache.json` to prevent duplicate notifications. This file persists between bot restarts to maintain state.
+### Cache Management
+The bot caches seen apartment IDs to prevent duplicate notifications:
+- **Location**: `/dev/shm/seen_flats_cache.json` (RAM disk, not SD card)
+- **Write Strategy**: Batched writes (every 10 new flats) to minimize SD card wear
+- **Persistence**: Cache is saved on graceful shutdown but lost on power failure
+- **Format**: Compact JSON for minimal size
 
+### Error Handling
 All scrapers are designed to be resilient - if one website fails, others continue working. Error states are reported to the private chat for monitoring.
+
+### SD Card Optimization
+To prevent SD card wear on Raspberry Pi:
+- Cache stored in RAM (`/dev/shm`)
+- Logging outputs to stdout only (captured by systemd journald)
+- Batched writes reduce disk I/O by ~95%
+- See `SD_CARD_OPTIMIZATION.md` for details
 

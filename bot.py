@@ -2,10 +2,8 @@ import asyncio
 import json
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional
 
-import aiohttp
-from bs4 import BeautifulSoup
 from telegram import Bot, Update
 from telegram.error import ChatMigrated, TelegramError
 from telegram.ext import (
@@ -16,8 +14,6 @@ from telegram.ext import (
     filters,
 )
 
-from scrapers import StadtUndLandScraper  # Import the new scraper
-from scrapers import reset_seen_flats, load_seen_flats, save_seen_flats, close_session, mark_flats_as_seen  # Add these imports
 from scrapers import (
     DegewoScraper,
     FlatDetails,
@@ -26,7 +22,13 @@ from scrapers import (
     HighTrafficError,
     InBerlinWohnenScraper,
     StandardFields,
+    StadtUndLandScraper,
     WebsiteUnavailableError,
+    close_session,
+    load_seen_flats,
+    mark_flats_as_seen,
+    reset_seen_flats,
+    save_seen_flats,
 )
 
 # Configure logging - output to stdout only (no file) to minimize SD card writes
